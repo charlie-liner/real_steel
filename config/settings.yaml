@@ -1,0 +1,29 @@
+camera:
+  device_id: 0
+  width: 640
+  height: 480
+  fps: 30
+
+pose:
+  min_detection_confidence: 0.5
+  min_tracking_confidence: 0.5
+
+angles:
+  smoothing_factor: 0.3
+
+mapping:
+  mirror_mode: true
+  dead_zone_deg: 3.0
+
+serial:
+  port: /dev/tty.usbserial-0001
+  baud: 115200
+
+simulation:
+  urdf_path: urdf/real_steel.urdf
+
+safety:
+  max_velocity: 2.0
+  position_tolerance: 0.1
+  watchdog_timeout: 2.0
+  max_continuous_runtime: 600

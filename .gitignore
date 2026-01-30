@@ -1,0 +1,34 @@
+# Python
+venv/
+real_steel/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Data
+data/recordings/*.mp4
+data/recordings/*.avi
+data/calibration/*.json
+data/*.task
+
+# ESP32
+esp32/**/build/
+esp32/**/.pio/
+
+# Secrets / local overrides
+.env
+*.local.yaml
