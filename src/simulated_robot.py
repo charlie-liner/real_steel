@@ -14,11 +14,13 @@ class SimulatedRobot(RobotInterface):
 
     # URDF joint names in our canonical order
     _URDF_JOINT_NAMES = [
-        "l_shoulder_pan_joint",
+        "l_shoulder_roll_joint",
         "l_shoulder_tilt_joint",
+        "l_shoulder_pan_joint",
         "l_elbow_joint",
-        "r_shoulder_pan_joint",
+        "r_shoulder_roll_joint",
         "r_shoulder_tilt_joint",
+        "r_shoulder_pan_joint",
         "r_elbow_joint",
     ]
 
@@ -46,7 +48,7 @@ class SimulatedRobot(RobotInterface):
 
             self.robot_id = p.loadURDF(
                 self.urdf_path,
-                basePosition=[0, 0, 0.5],
+                basePosition=[0, 0, 0],
                 baseOrientation=p.getQuaternionFromEuler([0, 0, 0]),
                 useFixedBase=True,
             )
@@ -56,10 +58,10 @@ class SimulatedRobot(RobotInterface):
 
             if self.gui:
                 p.resetDebugVisualizerCamera(
-                    cameraDistance=1.0,
-                    cameraYaw=180,
-                    cameraPitch=-20,
-                    cameraTargetPosition=[0, 0, 0.5],
+                    cameraDistance=0.6,
+                    cameraYaw=0,
+                    cameraPitch=-15,
+                    cameraTargetPosition=[0, 0, 0.55],
                 )
 
             return True
@@ -136,12 +138,14 @@ class SimulatedRobot(RobotInterface):
         """Add GUI sliders for manual joint control."""
         self.sliders = []
         joint_limits_deg = [
-            (-90, 90),
-            (-45, 135),
-            (0, 135),
-            (-90, 90),
-            (-45, 135),
-            (0, 135),
+            (-20, 135),   # l_roll
+            (-90, 90),    # l_tilt
+            (-90, 90),    # l_pan
+            (0, 135),     # l_elbow
+            (-20, 135),   # r_roll
+            (-90, 90),    # r_tilt
+            (-90, 90),    # r_pan
+            (0, 135),     # r_elbow
         ]
 
         for i, name in enumerate(self.JOINT_NAMES):
