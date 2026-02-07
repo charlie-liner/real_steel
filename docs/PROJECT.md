@@ -49,7 +49,8 @@ A dual-arm robot that mirrors human punching motions with less than 500ms latenc
 │  ┌──────────┐    ┌──────────────┐    ┌─────────────┐    ┌───────────────┐ │
 │  │  Camera  │───▶│ Pose         │───▶│ Joint Angle │───▶│ Motion        │ │
 │  │  Input   │    │ Estimation   │    │ Extraction  │    │ Mapping       │ │
-│  │ (OpenCV) │    │ (MediaPipe)  │    │             │    │               │ │
+│  │ (OpenCV) │    │ (RTMW3D/     │    │             │    │               │ │
+│  │          │    │  MMPose)     │    │             │    │               │ │
 │  └──────────┘    └──────────────┘    └─────────────┘    └───────┬───────┘ │
 │                                                                  │         │
 │                                                    ┌─────────────┴───────┐ │
@@ -134,9 +135,9 @@ Camera Frame (30fps)
        │
        ▼
 ┌─────────────────┐
-│ MediaPipe Pose  │  ~30ms
+│ RTMW3D (MMPose) │  ~10-30ms
 └────────┬────────┘
-         │ 33 keypoints (x, y, z, visibility)
+         │ 133 keypoints (x, y, z) with dedicated z-axis branch
          ▼
 ┌─────────────────┐
 │ Angle Extractor │  ~1ms
@@ -294,7 +295,7 @@ Camera Frame (30fps)
 | Dev Machine | Mac (native) | Available, no VM overhead |
 | Language | Python 3.10+ | Rapid prototyping |
 | Camera | Built-in webcam / USB | Simplest option |
-| Pose Estimation | MediaPipe BlazePose | Fast, accurate, easy setup |
+| Pose Estimation | RTMW3D (MMPose) | Real-time 3D pose with dedicated z-axis branch; replaces MediaPipe which had unreliable monocular depth for forward punches |
 | **Simulation** | **PyBullet** | No ROS required, Mac native, URDF support |
 | **Robot Model** | **URDF** | Standard format, reusable in Gazebo later |
 | Visualization | OpenCV, Matplotlib, PyBullet GUI | Debugging |
@@ -308,13 +309,18 @@ Camera Frame (30fps)
 ```
 # requirements.txt
 opencv-python>=4.8.0
-mediapipe>=0.10.0
+mmpose>=1.3.0
+mmengine>=0.10.0
+mmdet>=3.2.0
+mmcv>=2.1.0
 numpy>=1.24.0
 pyserial>=3.5
 pybullet>=3.2.5
 pyyaml>=6.0
 matplotlib>=3.7.0  # optional, for plotting
 ```
+
+> **Note:** MediaPipe was used in earlier milestones but has been replaced by RTMW3D (MMPose) due to unreliable monocular z-depth estimation. MediaPipe's z-axis noise (~3x worse than x/y) made forward punch detection (jabs, crosses) impossible to track accurately. RTMW3D provides a dedicated z-axis prediction branch that resolves this limitation. See Decisions Log (Section 11) for details.
 
 ### 5.3 Future Stack (Phase B)
 
@@ -390,7 +396,7 @@ Round-trip target: < 10ms
 
 #### Deliverables
 - [ ] Python 3.10+ environment (venv or conda)
-- [ ] Install dependencies: opencv-python, mediapipe, pyserial, numpy, pybullet
+- [ ] Install dependencies: opencv-python, mmpose, mmengine, mmdet, mmcv, pyserial, numpy, pybullet
 - [ ] ESP32 Arduino IDE or PlatformIO setup
 - [ ] Git repository initialized
 - [ ] Camera test script working
@@ -492,7 +498,7 @@ real-steel/
 
 #### Acceptance Criteria
 - Can capture webcam frame and display with OpenCV
-- MediaPipe pose estimation runs on webcam feed
+- RTMW3D pose estimation runs on webcam feed
 - PyBullet GUI opens and displays sample robot
 - ESP32 responds to serial commands
 - Git repo has initial commit
@@ -1162,126 +1168,132 @@ class Camera:
 #### 2.2 Pose Estimation
 **Duration:** 2-3 days
 
+> **Migration Note:** This section originally specified MediaPipe BlazePose. The project has migrated to **RTMW3D (MMPose)** because MediaPipe's monocular z-depth estimation was unreliable for forward punch detection (jabs, crosses). RTMW3D provides a dedicated z-axis prediction branch with significantly better depth accuracy. See Decisions Log (Section 11).
+
 ##### Tasks
-- [ ] Integrate MediaPipe Pose
-- [ ] Extract all 33 landmarks
-- [ ] Filter to upper body keypoints (11-16)
+- [ ] Integrate RTMW3D from MMPose
+- [ ] Download RTMW3D pretrained checkpoint (rtmw3d-l for accuracy, rtmw3d-s for speed)
+- [ ] Extract upper body keypoints (shoulders, elbows, wrists) from RTMW3D's COCO-format output
 - [ ] Handle detection confidence threshold
 - [ ] Add visualization overlay
 
-##### Keypoints of Interest
+##### Keypoints of Interest (COCO format used by RTMW3D)
 ```python
 KEYPOINTS = {
-    11: 'left_shoulder',
-    12: 'right_shoulder',
-    13: 'left_elbow',
-    14: 'right_elbow',
-    15: 'left_wrist',
-    16: 'right_wrist',
+    5: 'left_shoulder',
+    6: 'right_shoulder',
+    7: 'left_elbow',
+    8: 'right_elbow',
+    9: 'left_wrist',
+    10: 'right_wrist',
 }
 ```
 
 ##### Code: `pose_estimator.py`
 ```python
-import mediapipe as mp
 import numpy as np
 from dataclasses import dataclass
 from typing import Dict, Optional
 import cv2
 
+# MMPose inference API
+from mmpose.apis import init_model, inference_topdown
+from mmpose.structures import PoseDataSample
+
 @dataclass
 class Point3D:
-    x: float
+    x: float            # normalized [0, 1]
     y: float
-    z: float
+    z: float            # depth (from RTMW3D's dedicated z-axis branch)
     visibility: float
+    world_x: float      # meters (estimated from 3D prediction)
+    world_y: float
+    world_z: float
 
-@dataclass 
+@dataclass
 class PoseResult:
     keypoints: Dict[str, Point3D]
     is_valid: bool
     timestamp: float
-    
+
     def get_point(self, name: str) -> Optional[Point3D]:
         return self.keypoints.get(name)
 
 class PoseEstimator:
+    # COCO keypoint indices used by RTMW3D
     KEYPOINT_INDICES = {
-        11: 'left_shoulder',
-        12: 'right_shoulder', 
-        13: 'left_elbow',
-        14: 'right_elbow',
-        15: 'left_wrist',
-        16: 'right_wrist',
+        5: 'left_shoulder',
+        6: 'right_shoulder',
+        7: 'left_elbow',
+        8: 'right_elbow',
+        9: 'left_wrist',
+        10: 'right_wrist',
     }
-    
-    def __init__(self, min_detection_confidence: float = 0.5, 
-                 min_tracking_confidence: float = 0.5,
-                 min_visibility: float = 0.5):
+
+    def __init__(self, config_path: str, checkpoint_path: str,
+                 min_visibility: float = 0.5, device: str = 'cpu'):
         self.min_visibility = min_visibility
-        self.pose = mp.solutions.pose.Pose(
-            static_image_mode=False,
-            model_complexity=1,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence
-        )
-        self.mp_drawing = mp.solutions.drawing_utils
-        self.mp_pose = mp.solutions.pose
-        
+        self._last_valid_result: PoseResult | None = None
+        self.model = init_model(config_path, checkpoint_path, device=device)
+
     def process(self, image: np.ndarray, timestamp: float) -> PoseResult:
-        # Convert BGR to RGB
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        results = self.pose.process(image_rgb)
-        
-        keypoints = {}
+        # RTMW3D inference — returns 3D keypoints with dedicated z-axis predictions
+        results = inference_topdown(self.model, image)
+
+        keypoints: Dict[str, Point3D] = {}
         is_valid = False
-        
-        if results.pose_landmarks:
-            landmarks = results.pose_landmarks.landmark
-            
+
+        if results and len(results) > 0:
+            pred = results[0].pred_instances
+            kpts_2d = pred.keypoints[0]       # (K, 2) — x, y in pixels
+            kpts_3d = pred.keypoints_3d[0]    # (K, 3) — x, y, z in mm (from z-axis branch)
+            scores = pred.keypoint_scores[0]  # (K,)
+
+            h, w = image.shape[:2]
             for idx, name in self.KEYPOINT_INDICES.items():
-                lm = landmarks[idx]
                 keypoints[name] = Point3D(
-                    x=lm.x,
-                    y=lm.y, 
-                    z=lm.z,
-                    visibility=lm.visibility
+                    x=kpts_2d[idx][0] / w,
+                    y=kpts_2d[idx][1] / h,
+                    z=kpts_3d[idx][2] / 1000.0,   # mm to meters
+                    visibility=float(scores[idx]),
+                    world_x=kpts_3d[idx][0] / 1000.0,
+                    world_y=kpts_3d[idx][1] / 1000.0,
+                    world_z=kpts_3d[idx][2] / 1000.0,
                 )
-            
-            # Check if key points are visible
-            required = ['left_shoulder', 'right_shoulder', 'left_elbow', 
-                       'right_elbow', 'left_wrist', 'right_wrist']
+
             is_valid = all(
-                keypoints[k].visibility >= self.min_visibility 
-                for k in required
+                keypoints[name].visibility >= self.min_visibility
+                for name in self.KEYPOINT_INDICES.values()
             )
-        
-        return PoseResult(
-            keypoints=keypoints,
-            is_valid=is_valid,
-            timestamp=timestamp
-        )
-    
+
+        result = PoseResult(keypoints=keypoints, is_valid=is_valid, timestamp=timestamp)
+
+        if is_valid:
+            self._last_valid_result = result
+            return result
+
+        if self._last_valid_result is not None:
+            return PoseResult(
+                keypoints=self._last_valid_result.keypoints,
+                is_valid=True,
+                timestamp=timestamp,
+            )
+        return result
+
     def draw(self, image: np.ndarray, pose: PoseResult) -> np.ndarray:
         """Draw pose overlay on image"""
         output = image.copy()
-        
         if not pose.keypoints:
             return output
-        
         h, w = image.shape[:2]
-        
-        # Draw keypoints
         for name, point in pose.keypoints.items():
             if point.visibility >= self.min_visibility:
                 cx, cy = int(point.x * w), int(point.y * h)
                 color = (0, 255, 0) if point.visibility > 0.8 else (0, 165, 255)
                 cv2.circle(output, (cx, cy), 5, color, -1)
-                cv2.putText(output, name.split('_')[0][0].upper(), 
-                           (cx+5, cy-5), cv2.FONT_HERSHEY_SIMPLEX, 
+                cv2.putText(output, name.split('_')[0][0].upper(),
+                           (cx+5, cy-5), cv2.FONT_HERSHEY_SIMPLEX,
                            0.4, color, 1)
-        
-        # Draw bones
         bones = [
             ('left_shoulder', 'left_elbow'),
             ('left_elbow', 'left_wrist'),
@@ -1289,7 +1301,6 @@ class PoseEstimator:
             ('right_elbow', 'right_wrist'),
             ('left_shoulder', 'right_shoulder'),
         ]
-        
         for start_name, end_name in bones:
             start = pose.keypoints.get(start_name)
             end = pose.keypoints.get(end_name)
@@ -1298,14 +1309,26 @@ class PoseEstimator:
                     pt1 = (int(start.x * w), int(start.y * h))
                     pt2 = (int(end.x * w), int(end.y * h))
                     cv2.line(output, pt1, pt2, (0, 255, 0), 2)
-        
         return output
+
+    def close(self) -> None:
+        pass  # MMPose models don't require explicit cleanup
 ```
+
+##### Why RTMW3D over MediaPipe
+| Aspect | MediaPipe BlazePose | RTMW3D (MMPose) |
+|--------|-------------------|-----------------|
+| Z-depth accuracy | Poor (~3x noisier than x/y) | Dedicated z-axis prediction branch |
+| Forward punch detection | Unreliable (depth ambiguity) | Reliable (trained on 3D motion capture data) |
+| Real-time capable | Yes (~30ms CPU) | Yes (~10ms GPU, real-time on CPU) |
+| Model architecture | Single-frame, per-frame z guess | SimCC decoder with z-axis head |
+| Actively maintained | Limited updates | Active (OpenMMLab ecosystem) |
 
 ##### Acceptance Criteria
 - Pose detected reliably when person in frame
 - Processing time < 50ms per frame
 - Visualization shows skeleton overlay correctly
+- **Forward punch (jab/cross) detected with accurate z-axis movement**
 
 #### 2.3 Joint Angle Calculation
 **Duration:** 3-4 days
