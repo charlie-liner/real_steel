@@ -13,25 +13,23 @@ import pybullet as pb
 from src.simulated_robot import SimulatedRobot
 
 JOINT_NAMES = [
-    "L roll (spread)",
     "L tilt (fwd/back)",
     "L pan (rotate)",
     "L elbow",
-    "R roll (spread)",
     "R tilt (fwd/back)",
     "R pan (rotate)",
     "R elbow",
+    "Torso yaw",
 ]
 
 JOINT_LIMITS = [
-    (-20, 135),   # l_roll
     (-90, 90),    # l_tilt
     (-90, 90),    # l_pan
     (0, 135),     # l_elbow
-    (-20, 135),   # r_roll
     (-90, 90),    # r_tilt
     (-90, 90),    # r_pan
     (0, 135),     # r_elbow
+    (-90, 90),    # torso_yaw
 ]
 
 
@@ -56,7 +54,7 @@ def main():
         sliders.append(slider)
 
     print("=" * 50)
-    print("INTERACTIVE JOINT DIAGNOSTIC (4 DOF per arm)")
+    print("INTERACTIVE JOINT DIAGNOSTIC (3 DOF per arm + torso)")
     print("Drag the sliders in the PyBullet window.")
     print("Arrow keys to rotate camera, +/- to zoom.")
     print("Close PyBullet window to quit.")
@@ -68,7 +66,7 @@ def main():
 
     try:
         while pb.isConnected():
-            positions = np.zeros(8)
+            positions = np.zeros(7)
             for i, slider in enumerate(sliders):
                 deg = pb.readUserDebugParameter(slider)
                 positions[i] = np.deg2rad(deg)

@@ -14,14 +14,13 @@ class SimulatedRobot(RobotInterface):
 
     # URDF joint names in our canonical order
     _URDF_JOINT_NAMES = [
-        "l_shoulder_roll_joint",
         "l_shoulder_tilt_joint",
         "l_shoulder_pan_joint",
         "l_elbow_joint",
-        "r_shoulder_roll_joint",
         "r_shoulder_tilt_joint",
         "r_shoulder_pan_joint",
         "r_elbow_joint",
+        "torso_yaw_joint",
     ]
 
     def __init__(
@@ -153,14 +152,13 @@ class SimulatedRobot(RobotInterface):
         """Add GUI sliders for manual joint control."""
         self.sliders = []
         joint_limits_deg = [
-            (-20, 135),   # l_roll
             (-90, 90),    # l_tilt
             (-90, 90),    # l_pan
             (0, 135),     # l_elbow
-            (-20, 135),   # r_roll
             (-90, 90),    # r_tilt
             (-90, 90),    # r_pan
             (0, 135),     # r_elbow
+            (-90, 90),    # torso_yaw
         ]
 
         for i, name in enumerate(self.JOINT_NAMES):

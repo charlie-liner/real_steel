@@ -31,11 +31,38 @@
     </inertial>
   </link>
 
-  <!-- ==================== LEFT ARM (4 DOF) ==================== -->
-  <!-- Joint order: roll(X) → tilt(Y) → pan(Z) → elbow(Y) -->
+  <!-- ==================== TORSO YAW ==================== -->
+  <link name="torso_yaw_link">
+    <visual>
+      <geometry>
+        <cylinder radius="0.03" length="0.02"/>
+      </geometry>
+      <material name="grey"/>
+    </visual>
+    <collision>
+      <geometry>
+        <cylinder radius="0.03" length="0.02"/>
+      </geometry>
+    </collision>
+    <inertial>
+      <mass value="0.05"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0" iyy="0.0001" iyz="0" izz="0.0001"/>
+    </inertial>
+  </link>
 
-  <!-- 1. Left Shoulder Roll — spread arm out to side -->
-  <link name="l_shoulder_roll_link">
+  <joint name="torso_yaw_joint" type="revolute">
+    <parent link="base_link"/>
+    <child link="torso_yaw_link"/>
+    <origin xyz="0 0 0.125" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-1.5708" upper="1.5708" effort="10" velocity="2.0"/>
+  </joint>
+
+  <!-- ==================== LEFT ARM (3 DOF) ==================== -->
+  <!-- Joint order: tilt(Y) → pan(Z) → elbow(Y) -->
+
+  <!-- 1. Left Shoulder Tilt — swing arm forward/backward -->
+  <link name="l_shoulder_tilt_link">
     <visual>
       <geometry>
         <sphere radius="0.025"/>
@@ -53,42 +80,15 @@
     </inertial>
   </link>
 
-  <joint name="l_shoulder_roll_joint" type="revolute">
-    <parent link="base_link"/>
-    <child link="l_shoulder_roll_link"/>
-    <origin xyz="0.0 0.12 0.10" rpy="0 0 0"/>
-    <axis xyz="1 0 0"/>
-    <limit lower="-0.35" upper="2.36" effort="10" velocity="2.0"/>
-  </joint>
-
-  <!-- 2. Left Shoulder Tilt — swing arm forward/backward -->
-  <link name="l_shoulder_tilt_link">
-    <visual>
-      <geometry>
-        <sphere radius="0.015"/>
-      </geometry>
-      <material name="grey"/>
-    </visual>
-    <collision>
-      <geometry>
-        <sphere radius="0.015"/>
-      </geometry>
-    </collision>
-    <inertial>
-      <mass value="0.01"/>
-      <inertia ixx="0.00005" ixy="0" ixz="0" iyy="0.00005" iyz="0" izz="0.00005"/>
-    </inertial>
-  </link>
-
   <joint name="l_shoulder_tilt_joint" type="revolute">
-    <parent link="l_shoulder_roll_link"/>
+    <parent link="torso_yaw_link"/>
     <child link="l_shoulder_tilt_link"/>
-    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <origin xyz="0.0 0.12 0.10" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit lower="-1.5708" upper="1.5708" effort="10" velocity="2.0"/>
   </joint>
 
-  <!-- 3. Left Shoulder Pan — horizontal rotation -->
+  <!-- 2. Left Shoulder Pan — horizontal rotation -->
   <link name="l_shoulder_pan_link">
     <visual>
       <origin xyz="0 0 -0.075"/>
@@ -117,7 +117,7 @@
     <limit lower="-1.5708" upper="1.5708" effort="10" velocity="2.0"/>
   </joint>
 
-  <!-- 4. Left Elbow -->
+  <!-- 3. Left Elbow -->
   <link name="l_forearm_link">
     <visual>
       <origin xyz="0 0 -0.06"/>
@@ -171,11 +171,11 @@
     <origin xyz="0 0 -0.12" rpy="0 0 0"/>
   </joint>
 
-  <!-- ==================== RIGHT ARM (4 DOF) ==================== -->
-  <!-- Joint order: roll(X) → tilt(Y) → pan(Z) → elbow(Y) -->
+  <!-- ==================== RIGHT ARM (3 DOF) ==================== -->
+  <!-- Joint order: tilt(Y) → pan(Z) → elbow(Y) -->
 
-  <!-- 1. Right Shoulder Roll — spread arm out to side -->
-  <link name="r_shoulder_roll_link">
+  <!-- 1. Right Shoulder Tilt — swing arm forward/backward -->
+  <link name="r_shoulder_tilt_link">
     <visual>
       <geometry>
         <sphere radius="0.025"/>
@@ -193,42 +193,15 @@
     </inertial>
   </link>
 
-  <joint name="r_shoulder_roll_joint" type="revolute">
-    <parent link="base_link"/>
-    <child link="r_shoulder_roll_link"/>
-    <origin xyz="0.0 -0.12 0.10" rpy="0 0 0"/>
-    <axis xyz="-1 0 0"/>
-    <limit lower="-0.35" upper="2.36" effort="10" velocity="2.0"/>
-  </joint>
-
-  <!-- 2. Right Shoulder Tilt — swing arm forward/backward -->
-  <link name="r_shoulder_tilt_link">
-    <visual>
-      <geometry>
-        <sphere radius="0.015"/>
-      </geometry>
-      <material name="grey"/>
-    </visual>
-    <collision>
-      <geometry>
-        <sphere radius="0.015"/>
-      </geometry>
-    </collision>
-    <inertial>
-      <mass value="0.01"/>
-      <inertia ixx="0.00005" ixy="0" ixz="0" iyy="0.00005" iyz="0" izz="0.00005"/>
-    </inertial>
-  </link>
-
   <joint name="r_shoulder_tilt_joint" type="revolute">
-    <parent link="r_shoulder_roll_link"/>
+    <parent link="torso_yaw_link"/>
     <child link="r_shoulder_tilt_link"/>
-    <origin xyz="0 0 0" rpy="0 0 0"/>
+    <origin xyz="0.0 -0.12 0.10" rpy="0 0 0"/>
     <axis xyz="0 1 0"/>
     <limit lower="-1.5708" upper="1.5708" effort="10" velocity="2.0"/>
   </joint>
 
-  <!-- 3. Right Shoulder Pan — horizontal rotation -->
+  <!-- 2. Right Shoulder Pan — horizontal rotation -->
   <link name="r_shoulder_pan_link">
     <visual>
       <origin xyz="0 0 -0.075"/>
@@ -257,7 +230,7 @@
     <limit lower="-1.5708" upper="1.5708" effort="10" velocity="2.0"/>
   </joint>
 
-  <!-- 4. Right Elbow -->
+  <!-- 3. Right Elbow -->
   <link name="r_forearm_link">
     <visual>
       <origin xyz="0 0 -0.06"/>

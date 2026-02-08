@@ -14,16 +14,15 @@ class JointState:
 
 
 class RobotInterface(ABC):
-    NUM_JOINTS = 8
+    NUM_JOINTS = 7
     JOINT_NAMES = [
-        "l_shoulder_roll",
         "l_shoulder_tilt",
         "l_shoulder_pan",
         "l_elbow",
-        "r_shoulder_roll",
         "r_shoulder_tilt",
         "r_shoulder_pan",
         "r_elbow",
+        "torso_yaw",
     ]
 
     @abstractmethod

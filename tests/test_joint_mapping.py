@@ -14,14 +14,13 @@ import time
 import serial
 
 JOINTS = [
-    {"idx": 0, "name": "L_shoulder_roll", "desc": "Left arm spread outward",    "a": 0, "b": 45},
-    {"idx": 1, "name": "L_shoulder_tilt", "desc": "Left arm swing forward",     "a": 0, "b": 45},
-    {"idx": 2, "name": "L_shoulder_pan",  "desc": "Left arm rotate horizontal", "a": 0, "b": 45},
-    {"idx": 3, "name": "L_elbow",         "desc": "Left elbow bend",            "a": 0, "b": 45},
-    {"idx": 4, "name": "R_shoulder_roll", "desc": "Right arm spread outward",   "a": 0, "b": 45},
-    {"idx": 5, "name": "R_shoulder_tilt", "desc": "Right arm swing forward",    "a": 0, "b": 45},
-    {"idx": 6, "name": "R_shoulder_pan",  "desc": "Right arm rotate horizontal","a": 0, "b": 45},
-    {"idx": 7, "name": "R_elbow",         "desc": "Right elbow bend",           "a": 0, "b": 45},
+    {"idx": 0, "name": "L_shoulder_tilt", "desc": "Left arm swing forward",     "a": 0, "b": 45},
+    {"idx": 1, "name": "L_shoulder_pan",  "desc": "Left arm rotate horizontal", "a": 0, "b": 45},
+    {"idx": 2, "name": "L_elbow",         "desc": "Left elbow bend",            "a": 0, "b": 45},
+    {"idx": 3, "name": "R_shoulder_tilt", "desc": "Right arm swing forward",    "a": 0, "b": 45},
+    {"idx": 4, "name": "R_shoulder_pan",  "desc": "Right arm rotate horizontal","a": 0, "b": 45},
+    {"idx": 5, "name": "R_elbow",         "desc": "Right elbow bend",           "a": 0, "b": 45},
+    {"idx": 6, "name": "Torso_yaw",       "desc": "Body rotation left/right",   "a": 0, "b": 45},
 ]
 
 

@@ -190,18 +190,17 @@ class PunchCompensator:
             return angles
 
         return JointAngles(
-            left_shoulder_roll=angles.left_shoulder_roll,
             left_shoulder_tilt=(1.0 - left_i) * angles.left_shoulder_tilt
             + left_i * PUNCH_TARGET_TILT,
             left_shoulder_pan=angles.left_shoulder_pan,
             left_elbow=(1.0 - left_i) * angles.left_elbow
             + left_i * PUNCH_TARGET_ELBOW,
-            right_shoulder_roll=angles.right_shoulder_roll,
             right_shoulder_tilt=(1.0 - right_i) * angles.right_shoulder_tilt
             + right_i * PUNCH_TARGET_TILT,
             right_shoulder_pan=angles.right_shoulder_pan,
             right_elbow=(1.0 - right_i) * angles.right_elbow
             + right_i * PUNCH_TARGET_ELBOW,
+            torso_yaw=angles.torso_yaw,
             timestamp=angles.timestamp,
             valid=angles.valid,
         )

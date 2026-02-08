@@ -24,16 +24,15 @@ def make_pose(keypoints: dict[str, Point3D], timestamp: float = 0.0) -> PoseResu
 
 def make_joint_angles(**kwargs) -> JointAngles:
     defaults = dict(
-        left_shoulder_roll=0.0,
         left_shoulder_tilt=0.5,
         left_shoulder_pan=0.0,
         left_elbow=1.0,
-        right_shoulder_roll=0.0,
         right_shoulder_tilt=0.5,
         right_shoulder_pan=0.0,
         right_elbow=1.0,
+        torso_yaw=0.0,
         timestamp=0.0,
-        valid=np.ones(8, dtype=bool),
+        valid=np.ones(7, dtype=bool),
     )
     defaults.update(kwargs)
     return JointAngles(**defaults)
@@ -210,8 +209,8 @@ class TestGuardNotDetected:
 
 
 class TestCompensationValues:
-    def test_unchanged_roll_and_pan(self):
-        """Punch compensation should NOT modify roll or pan angles."""
+    def test_unchanged_pan_and_torso(self):
+        """Punch compensation should NOT modify pan or torso_yaw angles."""
         comp = PunchCompensator()
 
         relaxed = _relaxed_pose(timestamp=0.0)
@@ -220,15 +219,15 @@ class TestCompensationValues:
         jab_pose, _ = _jab_pose(side="left", timestamp=0.033)
         angles = make_joint_angles(
             timestamp=0.033,
-            left_shoulder_roll=0.3,
             left_shoulder_pan=0.2,
             left_shoulder_tilt=0.5,
             left_elbow=1.0,
+            torso_yaw=0.15,
         )
         result = comp.compensate(jab_pose, angles)
 
-        assert result.left_shoulder_roll == 0.3
         assert result.left_shoulder_pan == 0.2
+        assert result.torso_yaw == 0.15
 
 
 class TestNonePassthrough:

@@ -419,7 +419,7 @@ def main():
     print("Running pipeline. Press 'q' or ESC to quit.")
     if use_sim:
         print("PyBullet camera: arrow keys to rotate, +/- to zoom")
-    print("Joint order: [L_roll, L_tilt, L_pan, L_elbow, R_roll, R_tilt, R_pan, R_elbow]")
+    print("Joint order: [L_tilt, L_pan, L_elbow, R_tilt, R_pan, R_elbow, Torso]")
 
     try:
         while True:
@@ -563,7 +563,7 @@ def main():
                 # Draw current angles
                 if joint_angles is not None:
                     angles_deg = np.rad2deg(joint_angles.to_array())
-                    labels = ["LR", "LT", "LP", "LE", "RR", "RT", "RP", "RE"]
+                    labels = ["LT", "LP", "LE", "RT", "RP", "RE", "TY"]
                     y_start = 60
                     for i, (label, deg) in enumerate(zip(labels, angles_deg)):
                         cv2.putText(

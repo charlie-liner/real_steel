@@ -6,7 +6,7 @@ import numpy as np
 from src.evaluation.evaluator import JOINT_NAMES, GapMetrics
 
 # Short labels for display
-_JOINT_LABELS = ["L_roll", "L_tilt", "L_pan", "L_elbow", "R_roll", "R_tilt", "R_pan", "R_elbow"]
+_JOINT_LABELS = ["L_tilt", "L_pan", "L_elbow", "R_tilt", "R_pan", "R_elbow", "Torso"]
 
 _PANEL_WIDTH = 200
 _GREEN = (0, 200, 0)

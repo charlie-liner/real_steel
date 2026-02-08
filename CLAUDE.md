@@ -24,7 +24,7 @@ The ESP32 receives ASCII serial commands at 115200 baud and drives 6 servos (3 p
 
 **Key conventions:**
 - All internal angle processing uses **radians**; conversion to degrees only at the ESP32 serial boundary
-- Robot has 6 DOF: shoulder pan, shoulder tilt, elbow for each arm
+- Robot has 7 DOF: shoulder tilt, shoulder pan, elbow for each arm + torso yaw
 - Control loop target: 50 Hz (20ms update rate)
 - Mirroring mode: human left arm maps to robot right arm (shadow boxing)
 
@@ -94,7 +94,7 @@ Build and flash using Arduino IDE or PlatformIO. The main sketch is `esp32/real_
 ## Serial Protocol (Mac ↔ ESP32)
 
 Commands (Mac → ESP32):
-- `J:<a0>,<a1>,<a2>,<a3>,<a4>,<a5>` — Set all 6 joints (degrees)
+- `J:<a0>,<a1>,<a2>,<a3>,<a4>,<a5>,<a6>` — Set all 7 joints (degrees)
 - `S:<joint>:<angle>` — Set single joint
 - `H` — Home position
 - `Q` — Query current positions
@@ -110,12 +110,13 @@ Responses (ESP32 → Mac):
 
 | Joint | Index | Range | URDF Name |
 |-------|-------|-------|-----------|
-| L Shoulder Pan | 0 | -90° to +90° | `l_shoulder_pan_joint` |
-| L Shoulder Tilt | 1 | -45° to +135° | `l_shoulder_tilt_joint` |
+| L Shoulder Tilt | 0 | -90° to +90° | `l_shoulder_tilt_joint` |
+| L Shoulder Pan | 1 | -90° to +90° | `l_shoulder_pan_joint` |
 | L Elbow | 2 | 0° to +135° | `l_elbow_joint` |
-| R Shoulder Pan | 3 | -90° to +90° | `r_shoulder_pan_joint` |
-| R Shoulder Tilt | 4 | -45° to +135° | `r_shoulder_tilt_joint` |
+| R Shoulder Tilt | 3 | -90° to +90° | `r_shoulder_tilt_joint` |
+| R Shoulder Pan | 4 | -90° to +90° | `r_shoulder_pan_joint` |
 | R Elbow | 5 | 0° to +135° | `r_elbow_joint` |
+| Torso Yaw | 6 | -90° to +90° | `torso_yaw_joint` |
 
 ## Safety
 

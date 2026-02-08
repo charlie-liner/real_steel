@@ -50,9 +50,9 @@ class TestRecorder:
                 frame_number=i,
                 keypoints=make_keypoints(),
                 pose_confidence=0.9,
-                human_angles=np.zeros(8),
-                robot_cmd=np.ones(8) * 0.1,
-                robot_actual=np.ones(8) * 0.1,
+                human_angles=np.zeros(7),
+                robot_cmd=np.ones(7) * 0.1,
+                robot_actual=np.ones(7) * 0.1,
                 latency_ms=15.0,
             )
 
@@ -76,9 +76,9 @@ class TestRecorder:
         assert "gap_b" in first
         assert "gap_b_rmse" in first
         assert "latency_ms" in first
-        assert len(first["human_angles"]) == 8
-        assert len(first["robot_cmd"]) == 8
-        assert len(first["gap_b"]) == 8
+        assert len(first["human_angles"]) == 7
+        assert len(first["robot_cmd"]) == 7
+        assert len(first["gap_b"]) == 7
 
     def test_recorder_metadata(self, tmp_path):
         recorder = Recorder(output_dir=str(tmp_path))
@@ -90,9 +90,9 @@ class TestRecorder:
                 frame_number=i,
                 keypoints=make_keypoints(),
                 pose_confidence=0.85,
-                human_angles=np.zeros(8),
-                robot_cmd=np.ones(8) * 0.1,
-                robot_actual=np.ones(8) * 0.1,
+                human_angles=np.zeros(7),
+                robot_cmd=np.ones(7) * 0.1,
+                robot_actual=np.ones(7) * 0.1,
                 latency_ms=14.0,
             )
 
@@ -120,9 +120,9 @@ class TestRecorder:
             frame_number=0,
             keypoints=None,
             pose_confidence=0.0,
-            human_angles=np.zeros(8),
-            robot_cmd=np.zeros(8),
-            robot_actual=np.zeros(8),
+            human_angles=np.zeros(7),
+            robot_cmd=np.zeros(7),
+            robot_actual=np.zeros(7),
             latency_ms=10.0,
         )
 
@@ -139,7 +139,7 @@ class TestRecorder:
 class TestEvaluatorGapB:
     def test_gap_b_zero_error(self):
         evaluator = Evaluator(tolerance_deg=15.0)
-        cmd = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+        cmd = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7])
         actual = cmd.copy()
 
         gap = evaluator.compute_gap_b(cmd, actual)
@@ -150,10 +150,10 @@ class TestEvaluatorGapB:
 
     def test_gap_b_known_error(self):
         evaluator = Evaluator(tolerance_deg=15.0)
-        cmd = np.zeros(8)
+        cmd = np.zeros(7)
         # 10 degrees off in radians
         error_rad = np.deg2rad(10.0)
-        actual = np.full(8, error_rad)
+        actual = np.full(7, error_rad)
 
         gap = evaluator.compute_gap_b(cmd, actual)
         assert gap.rmse_deg == pytest.approx(10.0, abs=0.1)
@@ -166,10 +166,10 @@ class TestEvaluatorStaticPose:
     def test_static_pose_within_tolerance(self):
         evaluator = Evaluator()
         # Human angles match expected (both in the right units)
-        human_angles = np.deg2rad(np.array([90, 0, 0, 0, 90, 0, 0, 0], dtype=float))
+        human_angles = np.deg2rad(np.array([90, 0, 0, 90, 0, 0, 0], dtype=float))
         expected = {
-            "l_shoulder_roll": 90,
-            "r_shoulder_roll": 90,
+            "l_shoulder_tilt": 90,
+            "r_shoulder_tilt": 90,
         }
         gap = evaluator.evaluate_static_pose(human_angles, expected, tolerance_deg=10)
         assert gap.rmse_deg == pytest.approx(0.0, abs=0.1)
@@ -178,10 +178,10 @@ class TestEvaluatorStaticPose:
     def test_static_pose_outside_tolerance(self):
         evaluator = Evaluator()
         # Human angles are 20 degrees off
-        human_angles = np.deg2rad(np.array([70, 0, 0, 0, 70, 0, 0, 0], dtype=float))
+        human_angles = np.deg2rad(np.array([70, 0, 0, 70, 0, 0, 0], dtype=float))
         expected = {
-            "l_shoulder_roll": 90,
-            "r_shoulder_roll": 90,
+            "l_shoulder_tilt": 90,
+            "r_shoulder_tilt": 90,
         }
         gap = evaluator.evaluate_static_pose(human_angles, expected, tolerance_deg=10)
         assert gap.rmse_deg == pytest.approx(20.0, abs=0.5)
@@ -191,7 +191,7 @@ class TestEvaluatorStaticPose:
     def test_static_pose_partial_joints(self):
         """Only specified joints should be evaluated."""
         evaluator = Evaluator()
-        human_angles = np.deg2rad(np.array([0, 0, 0, 90, 0, 0, 0, 90], dtype=float))
+        human_angles = np.deg2rad(np.array([0, 0, 90, 0, 0, 90, 0], dtype=float))
         expected = {"l_elbow": 90, "r_elbow": 90}
         gap = evaluator.evaluate_static_pose(human_angles, expected, tolerance_deg=8)
         assert gap.rmse_deg == pytest.approx(0.0, abs=0.5)
@@ -227,8 +227,8 @@ class TestEvaluatorMotionSequence:
             t = i / (n_frames - 1)
             # Parabolic: 90 at t=0, 0 at t=0.4-ish, 90 at t=1
             elbow_deg = 90.0 * (2 * t - 1) ** 2  # U-shape
-            angles = np.zeros(8)
-            angles[3] = np.deg2rad(elbow_deg)  # l_elbow index
+            angles = np.zeros(7)
+            angles[2] = np.deg2rad(elbow_deg)  # l_elbow index
             recorded.append(angles)
 
         result = evaluator.evaluate_motion_sequence(recorded, timestamps, jab_def)
@@ -246,8 +246,8 @@ class TestEvaluatorMotionSequence:
         for i in range(n_frames):
             t = i / (n_frames - 1)
             elbow_deg = 90.0 * (2 * t - 1) ** 2
-            angles = np.zeros(8)
-            angles[3] = np.deg2rad(elbow_deg)
+            angles = np.zeros(7)
+            angles[2] = np.deg2rad(elbow_deg)
             recorded.append(angles)
 
         result = evaluator.evaluate_motion_sequence(recorded, timestamps, jab_def)
@@ -279,8 +279,8 @@ class TestTrajectoryConstraints:
 class TestRunningStats:
     def test_running_stats(self):
         evaluator = Evaluator(tolerance_deg=15.0)
-        cmd = np.zeros(8)
-        actual = np.full(8, np.deg2rad(5.0))
+        cmd = np.zeros(7)
+        actual = np.full(7, np.deg2rad(5.0))
 
         gap = evaluator.compute_gap_b(cmd, actual)
         evaluator.update_running_stats(gap)
@@ -291,8 +291,8 @@ class TestRunningStats:
 
     def test_running_stats_reset(self):
         evaluator = Evaluator()
-        cmd = np.zeros(8)
-        actual = np.full(8, np.deg2rad(10.0))
+        cmd = np.zeros(7)
+        actual = np.full(7, np.deg2rad(10.0))
         gap = evaluator.compute_gap_b(cmd, actual)
         evaluator.update_running_stats(gap)
 
@@ -326,9 +326,9 @@ class TestReplay:
                 frame_number=i,
                 keypoints=kp,
                 pose_confidence=0.9,
-                human_angles=np.ones(8) * 0.5,
-                robot_cmd=np.ones(8) * 0.6,
-                robot_actual=np.ones(8) * 0.55,
+                human_angles=np.ones(7) * 0.5,
+                robot_cmd=np.ones(7) * 0.6,
+                robot_actual=np.ones(7) * 0.55,
                 latency_ms=15.0,
             )
 
@@ -380,4 +380,4 @@ class TestReplay:
         assert "improvement_deg" in result
         assert "improvement_percent" in result
         assert "per_joint_improvement" in result
-        assert len(result["per_joint_improvement"]) == 8
+        assert len(result["per_joint_improvement"]) == 7

@@ -6,14 +6,13 @@ import numpy as np
 
 # Canonical joint order (matches RobotInterface.JOINT_NAMES)
 JOINT_NAMES = [
-    "l_shoulder_roll",
     "l_shoulder_tilt",
     "l_shoulder_pan",
     "l_elbow",
-    "r_shoulder_roll",
     "r_shoulder_tilt",
     "r_shoulder_pan",
     "r_elbow",
+    "torso_yaw",
 ]
 
 JOINT_NAME_TO_IDX = {name: i for i, name in enumerate(JOINT_NAMES)}
@@ -21,7 +20,7 @@ JOINT_NAME_TO_IDX = {name: i for i, name in enumerate(JOINT_NAMES)}
 
 @dataclass
 class GapMetrics:
-    per_joint_deg: np.ndarray  # (8,) error per joint in degrees
+    per_joint_deg: np.ndarray  # (7,) error per joint in degrees
     rmse_deg: float  # overall RMSE in degrees
     max_error_deg: float  # worst single-joint error
     worst_joint_idx: int  # index of worst joint
@@ -40,7 +39,7 @@ class MotionEvalResult:
 class Evaluator:
     def __init__(self, tolerance_deg: float = 15.0):
         self.tolerance_deg = tolerance_deg
-        self._running_sum = np.zeros(8)
+        self._running_sum = np.zeros(7)
         self._running_count = 0
 
     def compute_gap_b(
@@ -67,8 +66,8 @@ class Evaluator:
         tolerance_deg: float,
     ) -> GapMetrics:
         human_deg = np.rad2deg(human_angles)
-        errors = np.zeros(8)
-        checked = np.zeros(8, dtype=bool)
+        errors = np.zeros(7)
+        checked = np.zeros(7, dtype=bool)
 
         for name, expected_val in expected_angles_deg.items():
             idx = JOINT_NAME_TO_IDX.get(name)
@@ -193,7 +192,7 @@ class Evaluator:
     def get_running_stats(self) -> GapMetrics:
         if self._running_count == 0:
             return GapMetrics(
-                per_joint_deg=np.zeros(8),
+                per_joint_deg=np.zeros(7),
                 rmse_deg=0.0,
                 max_error_deg=0.0,
                 worst_joint_idx=0,
@@ -213,7 +212,7 @@ class Evaluator:
         )
 
     def reset_running_stats(self) -> None:
-        self._running_sum = np.zeros(8)
+        self._running_sum = np.zeros(7)
         self._running_count = 0
 
     @staticmethod

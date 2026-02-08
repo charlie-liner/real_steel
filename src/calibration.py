@@ -28,18 +28,17 @@ COLOR_YELLOW = (0, 255, 255)
 COLOR_GRAY = (180, 180, 180)
 
 HUMAN_JOINT_NAMES = [
-    "left_shoulder_roll",
     "left_shoulder_tilt",
     "left_shoulder_pan",
     "left_elbow",
-    "right_shoulder_roll",
     "right_shoulder_tilt",
     "right_shoulder_pan",
     "right_elbow",
+    "torso_yaw",
 ]
 
-HUMAN_JOINT_SHORT = ["LSR", "LST", "LSP", "LE", "RSR", "RST", "RSP", "RE"]
-ROBOT_JOINT_SHORT = ["lSR", "lST", "lSP", "lE", "rSR", "rST", "rSP", "rE"]
+HUMAN_JOINT_SHORT = ["LST", "LSP", "LE", "RST", "RSP", "RE", "TY"]
+ROBOT_JOINT_SHORT = ["lST", "lSP", "lE", "rST", "rSP", "rE", "TY"]
 
 KEYPOINT_NAMES = [
     "left_shoulder",
@@ -58,8 +57,8 @@ KEYPOINT_NAMES = [
 class CalibrationPose:
     name: str
     description: str
-    expected_human: np.ndarray  # shape (8,)
-    tolerance_deg: np.ndarray  # shape (8,)
+    expected_human: np.ndarray  # shape (7,)
+    tolerance_deg: np.ndarray  # shape (7,)
     relevant_joints: list[int]  # indices that matter for this pose
 
 
@@ -68,8 +67,8 @@ class CalibrationSample:
     frame_number: int
     timestamp: float
     keypoints: dict[str, Point3D] | None
-    human_angles: np.ndarray | None  # shape (8,)
-    robot_angles: np.ndarray | None  # shape (8,)
+    human_angles: np.ndarray | None  # shape (7,)
+    robot_angles: np.ndarray | None  # shape (7,)
     pose_valid: bool
 
 
@@ -111,11 +110,12 @@ def compute_expected_robot_angles(human: np.ndarray, config: MappingConfig | Non
     if config is None:
         config = MappingConfig(mirror_mode=True, dead_zone=0.0)
     joint_angles = JointAngles(
-        left_shoulder_roll=human[0], left_shoulder_tilt=human[1],
-        left_shoulder_pan=human[2], left_elbow=human[3],
-        right_shoulder_roll=human[4], right_shoulder_tilt=human[5],
-        right_shoulder_pan=human[6], right_elbow=human[7],
-        timestamp=0.0, valid=np.ones(8, dtype=bool),
+        left_shoulder_tilt=human[0], left_shoulder_pan=human[1],
+        left_elbow=human[2],
+        right_shoulder_tilt=human[3], right_shoulder_pan=human[4],
+        right_elbow=human[5],
+        torso_yaw=human[6],
+        timestamp=0.0, valid=np.ones(7, dtype=bool),
     )
     mapper = MotionMapper(config=config)
     return mapper.map(joint_angles).angles
@@ -127,44 +127,45 @@ CALIBRATION_POSES = [
     CalibrationPose(
         name="T-Pose",
         description="Stand with arms straight out to sides, palms down",
-        expected_human=np.array([np.pi / 2, 0.0, 0.0, 0.0, np.pi / 2, 0.0, 0.0, 0.0]),
-        tolerance_deg=np.array([20.0, 20.0, 15.0, 10.0, 20.0, 20.0, 15.0, 10.0]),
-        relevant_joints=[0, 1, 4, 5],
+        # [l_tilt, l_pan, l_elbow, r_tilt, r_pan, r_elbow, torso_yaw]
+        expected_human=np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        tolerance_deg=np.array([20.0, 15.0, 10.0, 20.0, 15.0, 10.0, 15.0]),
+        relevant_joints=[0, 3],
     ),
     CalibrationPose(
         name="Arms at Sides",
         description="Stand relaxed with arms hanging straight down",
-        expected_human=np.array([0.0, -np.pi / 2, 0.0, 0.0, 0.0, -np.pi / 2, 0.0, 0.0]),
-        tolerance_deg=np.array([20.0, 20.0, 15.0, 15.0, 20.0, 20.0, 15.0, 15.0]),
-        relevant_joints=[0, 1, 4, 5],
+        expected_human=np.array([-np.pi / 2, 0.0, 0.0, -np.pi / 2, 0.0, 0.0, 0.0]),
+        tolerance_deg=np.array([20.0, 15.0, 15.0, 20.0, 15.0, 15.0, 15.0]),
+        relevant_joints=[0, 3],
     ),
     CalibrationPose(
         name="Left Arm Forward",
         description="Extend LEFT arm straight forward, right arm at side",
-        expected_human=np.array([0.0, 0.0, 0.0, 0.0, 0.0, -np.pi / 2, 0.0, 0.0]),
-        tolerance_deg=np.array([20.0, 15.0, 15.0, 10.0, 20.0, 20.0, 15.0, 15.0]),
-        relevant_joints=[0, 1],
+        expected_human=np.array([0.0, 0.0, 0.0, -np.pi / 2, 0.0, 0.0, 0.0]),
+        tolerance_deg=np.array([15.0, 15.0, 10.0, 20.0, 15.0, 15.0, 15.0]),
+        relevant_joints=[0],
     ),
     CalibrationPose(
         name="Right Arm Forward",
         description="Extend RIGHT arm straight forward, left arm at side",
-        expected_human=np.array([0.0, -np.pi / 2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
-        tolerance_deg=np.array([20.0, 20.0, 15.0, 15.0, 20.0, 15.0, 15.0, 10.0]),
-        relevant_joints=[4, 5],
+        expected_human=np.array([-np.pi / 2, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]),
+        tolerance_deg=np.array([20.0, 15.0, 15.0, 15.0, 15.0, 10.0, 15.0]),
+        relevant_joints=[3],
     ),
     CalibrationPose(
         name="Left Elbow Bent",
         description="Left arm horizontal, bend LEFT elbow 90 degrees (forearm up)",
-        expected_human=np.array([np.pi / 2, 0.0, 0.0, 1.2, 0.0, -np.pi / 2, 0.0, 0.0]),
-        tolerance_deg=np.array([20.0, 15.0, 15.0, 15.0, 20.0, 20.0, 15.0, 15.0]),
-        relevant_joints=[0, 1, 3],
+        expected_human=np.array([0.0, 0.0, 1.2, -np.pi / 2, 0.0, 0.0, 0.0]),
+        tolerance_deg=np.array([15.0, 15.0, 15.0, 20.0, 15.0, 15.0, 15.0]),
+        relevant_joints=[0, 2],
     ),
     CalibrationPose(
         name="Guard Pose",
         description="Boxing guard: both fists up near chin, elbows bent",
-        expected_human=np.array([np.pi / 6, -np.pi / 4, 0.0, np.pi / 2, np.pi / 6, -np.pi / 4, 0.0, np.pi / 2]),
-        tolerance_deg=np.array([25.0, 25.0, 20.0, 20.0, 25.0, 25.0, 20.0, 20.0]),
-        relevant_joints=[0, 1, 3, 4, 5, 7],
+        expected_human=np.array([-np.pi / 4, 0.0, np.pi / 2, -np.pi / 4, 0.0, np.pi / 2, 0.0]),
+        tolerance_deg=np.array([25.0, 20.0, 20.0, 25.0, 20.0, 20.0, 15.0]),
+        relevant_joints=[0, 2, 3, 5],
     ),
 ]
 
@@ -502,37 +503,30 @@ class CalibrationMode:
         cv2.circle(frame, (ox + 20, oy - 25), 3, COLOR_WHITE, -1)
 
         # Draw arms based on expected angles
-        # Order: [l_roll(0), l_tilt(1), l_pan(2), l_elbow(3),
-        #         r_roll(4), r_tilt(5), r_pan(6), r_elbow(7)]
+        # Order: [l_tilt(0), l_pan(1), l_elbow(2),
+        #         r_tilt(3), r_pan(4), r_elbow(5), torso_yaw(6)]
         arm_len = 30
         forearm_len = 25
 
         for side in ["left", "right"]:
             if side == "left":
                 sx = ox - 20
-                roll = pose.expected_human[0]
-                tilt = pose.expected_human[1]
-                elbow_angle = pose.expected_human[3]
+                tilt = pose.expected_human[0]
+                elbow_angle = pose.expected_human[2]
                 color = (0, 200, 0)
                 sign = -1  # left extends leftward
             else:
                 sx = ox + 20
-                roll = pose.expected_human[4]
-                tilt = pose.expected_human[5]
-                elbow_angle = pose.expected_human[7]
+                tilt = pose.expected_human[3]
+                elbow_angle = pose.expected_human[5]
                 color = (200, 100, 0)
                 sign = 1
 
             sy = oy - 25
 
-            # Blend between "hanging down" and tilt-controlled angle based on roll.
-            # roll=0 → arm hangs down (angle = -pi/2), roll=pi/2 → arm horizontal (use tilt).
-            roll_factor = np.clip(roll / (np.pi / 2), 0.0, 1.0)
-            effective_tilt = roll_factor * tilt + (1.0 - roll_factor) * (-np.pi / 2)
-
             # Upper arm: tilt from horizontal
-            ex = sx + sign * int(arm_len * np.cos(effective_tilt))
-            ey = sy - int(arm_len * np.sin(effective_tilt))
+            ex = sx + sign * int(arm_len * np.cos(tilt))
+            ey = sy - int(arm_len * np.sin(tilt))
             cv2.line(frame, (sx, sy), (ex, ey), color, 2)
 
             # Forearm: elbow flexion relative to upper arm

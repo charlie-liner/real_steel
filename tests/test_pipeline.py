@@ -26,16 +26,15 @@ def make_pose(keypoints: dict[str, Point3D], timestamp: float = 0.0) -> PoseResu
 def make_joint_angles(**kwargs) -> JointAngles:
     """Helper to create JointAngles with defaults of 0."""
     defaults = dict(
-        left_shoulder_roll=0.0,
         left_shoulder_tilt=0.0,
         left_shoulder_pan=0.0,
         left_elbow=0.0,
-        right_shoulder_roll=0.0,
         right_shoulder_tilt=0.0,
         right_shoulder_pan=0.0,
         right_elbow=0.0,
+        torso_yaw=0.0,
         timestamp=0.0,
-        valid=np.ones(8, dtype=bool),
+        valid=np.ones(7, dtype=bool),
     )
     defaults.update(kwargs)
     return JointAngles(**defaults)
@@ -118,28 +117,26 @@ class TestMirrorMode:
     def test_mirror_mode(self):
         """Mirror mode swaps left/right and negates pan angles.
 
-        JOINT_ORDER: [l_roll(0), l_tilt(1), l_pan(2), l_elbow(3),
-                      r_roll(4), r_tilt(5), r_pan(6), r_elbow(7)]
+        JOINT_ORDER: [l_tilt(0), l_pan(1), l_elbow(2),
+                      r_tilt(3), r_pan(4), r_elbow(5), torso_yaw(6)]
 
         Mirror mapping:
-          robot l_roll  = human r_roll
           robot l_tilt  = human r_tilt
           robot l_pan   = -human r_pan
           robot l_elbow = human r_elbow
-          robot r_roll  = human l_roll
           robot r_tilt  = human l_tilt
           robot r_pan   = -human l_pan
           robot r_elbow = human l_elbow
+          robot torso   = -human torso
         """
         human = make_joint_angles(
-            left_shoulder_roll=0.2,
             left_shoulder_tilt=-0.5,
             left_shoulder_pan=0.3,
             left_elbow=1.0,
-            right_shoulder_roll=0.1,
             right_shoulder_tilt=-0.6,
             right_shoulder_pan=0.4,
             right_elbow=0.8,
+            torso_yaw=0.1,
         )
         mapper = MotionMapper(MappingConfig(mirror_mode=True, dead_zone=0.0))
         result = mapper.map(human)
@@ -148,30 +145,30 @@ class TestMirrorMode:
         offset = mapper.config.offsets
 
         # Robot left ← human right (pan negated)
-        assert abs(result.angles[0] - (human.right_shoulder_roll * scale["l_shoulder_roll"] + offset["l_shoulder_roll"])) < 0.01
-        assert abs(result.angles[1] - (human.right_shoulder_tilt * scale["l_shoulder_tilt"] + offset["l_shoulder_tilt"])) < 0.01
-        assert abs(result.angles[2] - (-human.right_shoulder_pan * scale["l_shoulder_pan"] + offset["l_shoulder_pan"])) < 0.01
-        assert abs(result.angles[3] - (human.right_elbow * scale["l_elbow"] + offset["l_elbow"])) < 0.01
+        assert abs(result.angles[0] - (human.right_shoulder_tilt * scale["l_shoulder_tilt"] + offset["l_shoulder_tilt"])) < 0.01
+        assert abs(result.angles[1] - (-human.right_shoulder_pan * scale["l_shoulder_pan"] + offset["l_shoulder_pan"])) < 0.01
+        assert abs(result.angles[2] - (human.right_elbow * scale["l_elbow"] + offset["l_elbow"])) < 0.01
 
         # Robot right ← human left (pan negated)
-        assert abs(result.angles[4] - (human.left_shoulder_roll * scale["r_shoulder_roll"] + offset["r_shoulder_roll"])) < 0.01
-        assert abs(result.angles[5] - (human.left_shoulder_tilt * scale["r_shoulder_tilt"] + offset["r_shoulder_tilt"])) < 0.01
-        assert abs(result.angles[6] - (-human.left_shoulder_pan * scale["r_shoulder_pan"] + offset["r_shoulder_pan"])) < 0.01
-        assert abs(result.angles[7] - (human.left_elbow * scale["r_elbow"] + offset["r_elbow"])) < 0.01
+        assert abs(result.angles[3] - (human.left_shoulder_tilt * scale["r_shoulder_tilt"] + offset["r_shoulder_tilt"])) < 0.01
+        assert abs(result.angles[4] - (-human.left_shoulder_pan * scale["r_shoulder_pan"] + offset["r_shoulder_pan"])) < 0.01
+        assert abs(result.angles[5] - (human.left_elbow * scale["r_elbow"] + offset["r_elbow"])) < 0.01
+
+        # Torso yaw negated
+        assert abs(result.angles[6] - (-human.torso_yaw * scale["torso_yaw"] + offset["torso_yaw"])) < 0.01
 
 
 class TestJointLimits:
     def test_joint_limits_clamping(self):
         """Values beyond limits should be clamped."""
         human = make_joint_angles(
-            left_shoulder_roll=5.0,
             left_shoulder_tilt=5.0,
             left_shoulder_pan=5.0,
             left_elbow=5.0,
-            right_shoulder_roll=-5.0,
             right_shoulder_tilt=-5.0,
             right_shoulder_pan=-5.0,
             right_elbow=-5.0,
+            torso_yaw=5.0,
         )
         config = MappingConfig(mirror_mode=False, dead_zone=0.0)
         mapper = MotionMapper(config)
@@ -190,8 +187,8 @@ class TestDeadZone:
         config = MappingConfig(mirror_mode=False, dead_zone=0.05)
         mapper = MotionMapper(config)
 
-        # l_shoulder_pan is at index 2 in JOINT_ORDER
-        PAN_IDX = 2
+        # l_shoulder_pan is at index 1 in JOINT_ORDER
+        PAN_IDX = 1
 
         # Initial mapping
         initial = make_joint_angles(left_shoulder_pan=0.5, timestamp=0.0)

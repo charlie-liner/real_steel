@@ -91,7 +91,7 @@ class Replay:
     ) -> dict:
         def avg_gap_deg(frames: list[dict]) -> tuple[float, np.ndarray]:
             if not frames:
-                return 0.0, np.zeros(8)
+                return 0.0, np.zeros(7)
             rmses = [f["gap_b_rmse"] for f in frames]
             per_joint = np.mean([f["gap_b"] for f in frames], axis=0)
             return float(np.rad2deg(np.mean(rmses))), np.rad2deg(per_joint)

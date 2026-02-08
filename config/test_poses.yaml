@@ -1,44 +1,41 @@
 static_poses:
-  t_pose:
-    description: "Arms horizontal, fully extended"
+  arms_forward:
+    description: "Both arms extended forward"
     hold_seconds: 3
     expected_angles_deg:
-      l_shoulder_roll: 90
-      l_shoulder_tilt: 0
+      l_shoulder_tilt: 90
       l_shoulder_pan: 0
       l_elbow: 0
-      r_shoulder_roll: 90
-      r_shoulder_tilt: 0
+      r_shoulder_tilt: 90
       r_shoulder_pan: 0
       r_elbow: 0
+      torso_yaw: 0
     tolerance_deg: 10
 
   arms_down:
     description: "Arms at sides (attention pose)"
     hold_seconds: 3
     expected_angles_deg:
-      l_shoulder_roll: 0
       l_shoulder_tilt: 0
       l_shoulder_pan: 0
       l_elbow: 0
-      r_shoulder_roll: 0
       r_shoulder_tilt: 0
       r_shoulder_pan: 0
       r_elbow: 0
+      torso_yaw: 0
     tolerance_deg: 10
 
   guard:
     description: "Boxing guard position"
     hold_seconds: 3
     expected_angles_deg:
-      l_shoulder_roll: 30
       l_shoulder_tilt: 20
       l_shoulder_pan: 10
       l_elbow: 90
-      r_shoulder_roll: 30
       r_shoulder_tilt: 20
       r_shoulder_pan: 10
       r_elbow: 90
+      torso_yaw: 15
     tolerance_deg: 12
 
   elbow_90:

@@ -16,19 +16,18 @@ import serial
 
 
 JOINT_LABELS = [
-    "0: L_shoulder_roll",
-    "1: L_shoulder_tilt",
-    "2: L_shoulder_pan",
-    "3: L_elbow",
-    "4: R_shoulder_roll",
-    "5: R_shoulder_tilt",
-    "6: R_shoulder_pan",
-    "7: R_elbow",
+    "0: L_shoulder_tilt",
+    "1: L_shoulder_pan",
+    "2: L_elbow",
+    "3: R_shoulder_tilt",
+    "4: R_shoulder_pan",
+    "5: R_elbow",
+    "6: Torso_yaw",
 ]
 
 # Angle limits (degrees) — must match config.h
-ANGLE_MIN = [-20, -90, -90, 0, -20, -90, -90, 0]
-ANGLE_MAX = [135, 90, 90, 135, 135, 90, 90, 135]
+ANGLE_MIN = [-90, -90, 0, -90, -90, 0, -90]
+ANGLE_MAX = [90, 90, 135, 90, 90, 135, 90]
 
 
 def connect(port: str, baud: int = 115200) -> serial.Serial:
@@ -85,10 +84,10 @@ def sweep_motor(ser: serial.Serial, channel: int):
 
 
 def sweep_all(ser: serial.Serial):
-    """Sweep all 8 motors simultaneously using J: command."""
+    """Sweep all 7 motors simultaneously using J: command."""
     pos_targets = [min(30.0, hi) for hi in ANGLE_MAX]
     neg_targets = [max(-30.0, lo) for lo in ANGLE_MIN]
-    zeros = [0.0] * 8
+    zeros = [0.0] * 7
 
     steps = [
         ("Home", zeros),
@@ -126,7 +125,7 @@ def main():
     if args.channels:
         channels = [int(c) for c in args.channels.split(",")]
     else:
-        channels = list(range(8))
+        channels = list(range(7))
 
     ser = connect(args.port, args.baud)
 

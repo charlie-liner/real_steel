@@ -9,30 +9,28 @@ from src.pose_estimator import Point3D, PoseResult
 
 @dataclass
 class JointAngles:
-    """Joint angles in radians. Order: roll, tilt, pan, elbow per arm."""
+    """Joint angles in radians. Order: tilt, pan, elbow per arm + torso_yaw."""
 
-    left_shoulder_roll: float
     left_shoulder_tilt: float
     left_shoulder_pan: float
     left_elbow: float
-    right_shoulder_roll: float
     right_shoulder_tilt: float
     right_shoulder_pan: float
     right_elbow: float
+    torso_yaw: float
     timestamp: float
-    valid: np.ndarray  # shape (8,) bool
+    valid: np.ndarray  # shape (7,) bool
 
     def to_array(self) -> np.ndarray:
         return np.array(
             [
-                self.left_shoulder_roll,
                 self.left_shoulder_tilt,
                 self.left_shoulder_pan,
                 self.left_elbow,
-                self.right_shoulder_roll,
                 self.right_shoulder_tilt,
                 self.right_shoulder_pan,
                 self.right_elbow,
+                self.torso_yaw,
             ]
         )
 
@@ -53,6 +51,10 @@ class AngleCalculator:
         "left_wrist", "right_wrist",
     ]
 
+    # MediaPipe Z (depth) has ~3x more noise than X/Y.
+    # Reduce Z's contribution to horizontal distance in tilt calculation.
+    DEPTH_WEIGHT = 0.3
+
     def __init__(self, smoothing_factor: float = 0.3, elbow_dead_zone: float | None = None):
         self.smoothing_factor = smoothing_factor
         if elbow_dead_zone is not None:
@@ -70,16 +72,15 @@ class AngleCalculator:
         ls, rs, le, re, lw, rw = pts[0], pts[1], pts[2], pts[3], pts[4], pts[5]
 
         angles = JointAngles(
-            left_shoulder_roll=self._calc_shoulder_roll(ls, le, rs),
             left_shoulder_tilt=self._calc_shoulder_tilt(ls, le),
             left_shoulder_pan=self._calc_shoulder_pan(ls, le, rs),
             left_elbow=self._calc_elbow_angle(ls, le, lw),
-            right_shoulder_roll=self._calc_shoulder_roll(rs, re, ls),
             right_shoulder_tilt=self._calc_shoulder_tilt(rs, re),
             right_shoulder_pan=self._calc_shoulder_pan(rs, re, ls),
             right_elbow=self._calc_elbow_angle(rs, re, rw),
+            torso_yaw=self._calc_torso_yaw(ls, rs),
             timestamp=pose.timestamp,
-            valid=np.ones(8, dtype=bool),
+            valid=np.ones(7, dtype=bool),
         )
 
         if self.prev_angles is not None:
@@ -90,34 +91,6 @@ class AngleCalculator:
 
     def _to_world_vec(self, p: Point3D) -> np.ndarray:
         return np.array([p.world_x, p.world_y, p.world_z])
-
-    def _calc_shoulder_roll(
-        self, shoulder: np.ndarray, elbow: np.ndarray, other_shoulder: np.ndarray
-    ) -> float:
-        """Abduction angle — how far the arm is spread from the body.
-        0=arm hanging at side, +ve=arm spread outward (toward T-pose)."""
-        upper_arm = elbow - shoulder
-
-        # Outward direction in the frontal plane (perpendicular to forward axis)
-        outward = shoulder - other_shoulder
-        outward[2] = 0  # zero out Z (depth) — stay in frontal plane
-        out_norm = np.linalg.norm(outward)
-        if out_norm < 1e-6:
-            return 0.0
-        outward = outward / out_norm
-
-        # Project upper arm onto frontal plane (ignore Z/depth)
-        arm_frontal = upper_arm.copy()
-        arm_frontal[2] = 0
-
-        # Downward component (Y points down in our convention)
-        down_component = upper_arm[1]  # positive = downward
-        # Outward component
-        out_component = np.dot(arm_frontal, outward)
-
-        # Angle from downward: 0 = hanging, pi/2 = spread horizontal
-        angle = float(np.arctan2(out_component, down_component))
-        return max(angle, 0.0)  # clamp negative (arm crossing body) to 0
 
     def _calc_shoulder_pan(
         self, shoulder: np.ndarray, elbow: np.ndarray, other_shoulder: np.ndarray
@@ -158,10 +131,6 @@ class AngleCalculator:
 
         return angle
 
-    # MediaPipe Z (depth) has ~3x more noise than X/Y.
-    # Reduce Z's contribution to horizontal distance in tilt calculation.
-    DEPTH_WEIGHT = 0.3
-
     def _calc_shoulder_tilt(
         self, shoulder: np.ndarray, elbow: np.ndarray
     ) -> float:
@@ -200,6 +169,17 @@ class AngleCalculator:
         if flexion < self.ELBOW_DEAD_ZONE:
             return 0.0
         return flexion
+
+    def _calc_torso_yaw(
+        self, left_shoulder: np.ndarray, right_shoulder: np.ndarray
+    ) -> float:
+        """Torso rotation from shoulder line orientation.
+        0=facing camera, +ve=left shoulder forward (orthodox stance)."""
+        dx = right_shoulder[0] - left_shoulder[0]
+        dz = right_shoulder[2] - left_shoulder[2]
+        yaw = np.arctan2(dz, dx)
+        # Attenuate with DEPTH_WEIGHT since Z is noisy
+        return float(yaw * self.DEPTH_WEIGHT)
 
     def _smooth(self, current: JointAngles, previous: JointAngles) -> JointAngles:
         alpha = self.smoothing_factor

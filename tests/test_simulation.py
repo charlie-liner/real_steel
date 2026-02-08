@@ -17,8 +17,9 @@ from src.simulated_robot import SimulatedRobot
 URDF_PATH = "urdf/real_steel.urdf"
 
 # Joint limits from URDF (radians)
-JOINT_LOWER = np.array([-1.5708, -0.7854, 0.0, -1.5708, -0.7854, 0.0])
-JOINT_UPPER = np.array([1.5708, 2.3562, 2.3562, 1.5708, 2.3562, 2.3562])
+# [l_tilt, l_pan, l_elbow, r_tilt, r_pan, r_elbow, torso_yaw]
+JOINT_LOWER = np.array([-1.5708, -1.5708, 0.0, -1.5708, -1.5708, 0.0, -1.5708])
+JOINT_UPPER = np.array([1.5708, 1.5708, 2.3562, 1.5708, 1.5708, 2.3562, 1.5708])
 
 
 def _make_robot():
@@ -29,10 +30,10 @@ def _make_robot():
 
 
 def test_urdf_loads():
-    """Verify URDF loads and all 6 joints are mapped."""
+    """Verify URDF loads and all 7 joints are mapped."""
     robot = _make_robot()
     assert robot.is_connected()
-    assert len(robot.joint_indices) == 6
+    assert len(robot.joint_indices) == 7
     robot.disconnect()
 
 
@@ -40,13 +41,13 @@ def test_joint_control():
     """Verify joints reach commanded positions."""
     robot = _make_robot()
 
-    target = np.array([0.5, 0.3, 1.0, -0.5, 0.3, 1.0])
+    target = np.array([0.5, 0.3, 1.0, -0.5, 0.3, 1.0, 0.2])
     robot.set_joint_positions(target)
     for _ in range(200):
         robot.step()
 
     state = robot.get_joint_state()
-    for i in range(6):
+    for i in range(7):
         assert abs(state.positions[i] - target[i]) < 0.1, (
             f"Joint {i}: expected {target[i]:.3f}, got {state.positions[i]:.3f}"
         )
@@ -59,12 +60,12 @@ def test_joint_limits():
     robot = _make_robot()
 
     # Command positions well beyond limits
-    robot.set_joint_positions(np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0]))
+    robot.set_joint_positions(np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0, 5.0]))
     for _ in range(200):
         robot.step()
 
     state = robot.get_joint_state()
-    for i in range(6):
+    for i in range(7):
         assert state.positions[i] <= JOINT_UPPER[i] + 0.01, (
             f"Joint {i} exceeded upper limit: {state.positions[i]:.3f} > {JOINT_UPPER[i]:.3f}"
         )
@@ -80,14 +81,14 @@ def test_home():
     robot = _make_robot()
 
     # Move to non-zero positions first
-    robot.set_joint_positions(np.array([0.5, 0.3, 1.0, -0.5, 0.3, 1.0]))
+    robot.set_joint_positions(np.array([0.5, 0.3, 1.0, -0.5, 0.3, 1.0, 0.2]))
     for _ in range(200):
         robot.step()
 
     robot.home()
 
     state = robot.get_joint_state()
-    for i in range(6):
+    for i in range(7):
         assert abs(state.positions[i]) < 0.1, (
             f"Joint {i} not at home: {state.positions[i]:.3f}"
         )
@@ -107,13 +108,6 @@ def main():
     print("Testing joint control...")
     print("Camera: arrow keys to rotate, +/- to zoom, Ctrl+C to exit")
 
-    # Twist torso for right-handed orthodox stance (left shoulder forward)
-    stance_yaw = 0.3  # ~17 degrees
-    pos, _ = p.getBasePositionAndOrientation(robot.robot_id)
-    p.resetBasePositionAndOrientation(
-        robot.robot_id, pos, p.getQuaternionFromEuler([0, 0, stance_yaw])
-    )
-
     # Camera state
     cam = p.getDebugVisualizerCamera()
     cam_dist = cam[10]
@@ -122,17 +116,17 @@ def main():
     cam_target = list(cam[11])
 
     try:
-        # [l_pan, l_tilt, l_elbow, r_pan, r_tilt, r_elbow] in radians
+        # [l_tilt, l_pan, l_elbow, r_tilt, r_pan, r_elbow, torso_yaw] in radians
         sequences = [
-            ([0.0, 1.0, 1.5, 0.0, 1.0, 1.5], "Guard"),
-            ([0.0, 1.5, 0.0, 0.0, 1.0, 1.5], "Left jab"),
-            ([0.0, 1.0, 1.5, 0.0, 1.0, 1.5], "Guard"),
-            ([0.0, 1.0, 1.5, 0.0, 1.5, 0.0], "Right cross"),
-            ([0.0, 1.0, 1.5, 0.0, 1.0, 1.5], "Guard"),
-            ([0.0, 1.5, 0.0, 0.0, 1.0, 1.5], "One-two: jab"),
-            ([0.0, 1.0, 1.5, 0.0, 1.5, 0.0], "One-two: cross"),
-            ([0.0, 1.0, 1.5, 0.0, 1.0, 1.5], "Guard"),
-            ([0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "Home"),
+            ([1.0, 0.0, 1.5, 1.0, 0.0, 1.5, 0.0], "Guard"),
+            ([1.5, 0.0, 0.0, 1.0, 0.0, 1.5, 0.0], "Left jab"),
+            ([1.0, 0.0, 1.5, 1.0, 0.0, 1.5, 0.0], "Guard"),
+            ([1.0, 0.0, 1.5, 1.5, 0.0, 0.0, 0.3], "Right cross"),
+            ([1.0, 0.0, 1.5, 1.0, 0.0, 1.5, 0.0], "Guard"),
+            ([1.5, 0.0, 0.0, 1.0, 0.0, 1.5, 0.0], "One-two: jab"),
+            ([1.0, 0.0, 1.5, 1.5, 0.0, 0.0, 0.3], "One-two: cross"),
+            ([1.0, 0.0, 1.5, 1.0, 0.0, 1.5, 0.0], "Guard"),
+            ([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0], "Home"),
         ]
 
         for target, label in sequences:

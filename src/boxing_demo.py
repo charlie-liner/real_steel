@@ -1,4 +1,4 @@
-"""Boxing move demo. Plays pre-programmed punch sequences to evaluate 4-DOF joint structure."""
+"""Boxing move demo. Plays pre-programmed punch sequences to evaluate 3-DOF per arm + torso joint structure."""
 
 import sys
 from pathlib import Path
@@ -12,15 +12,15 @@ import pybullet as pb
 
 from src.simulated_robot import SimulatedRobot
 
-# Joint order: [l_roll, l_tilt, l_pan, l_elbow, r_roll, r_tilt, r_pan, r_elbow] in DEGREES
+# Joint order: [l_tilt, l_pan, l_elbow, r_tilt, r_pan, r_elbow, torso_yaw] in DEGREES
 #
-# roll:  0=arm at side, +90=arm spread horizontal (T-pose)
 # tilt:  0=neutral, +90=swing forward, -90=swing backward
 # pan:   0=center, ±90=rotate around local vertical
 # elbow: 0=straight, +90=bent 90deg
+# torso_yaw: 0=facing forward, +ve=left shoulder forward
 
-GUARD = [30, 40, 0, 100,  30, 40, 0, 100]
-REST  = [0, 0, 0, 0,  0, 0, 0, 0]
+GUARD = [40, 0, 100,  40, 0, 100,  15]
+REST  = [0, 0, 0,  0, 0, 0,  0]
 
 # Each move: list of (keyframe_deg, transition_seconds)
 MOVES = [
@@ -30,56 +30,56 @@ MOVES = [
     ]),
     ("Left Jab", [
         (GUARD, 0.1),
-        ([30, 70, 0, 5,  30, 40, 0, 100], 0.06),    # punch out
+        ([70, 0, 5,  40, 0, 100,  20], 0.06),    # punch out, torso rotates into jab
         (GUARD, 0.1),
-        ([30, 70, 0, 5,  30, 40, 0, 100], 0.06),    # double jab
+        ([70, 0, 5,  40, 0, 100,  20], 0.06),    # double jab
         (GUARD, 0.1),
     ]),
     ("Right Cross", [
         (GUARD, 0.1),
-        ([30, 40, 0, 100,  30, 70, 0, 5], 0.07),    # punch out
+        ([40, 0, 100,  70, 0, 5,  -25], 0.07),   # punch out, torso rotates into cross
         (GUARD, 0.1),
     ]),
     ("Left Uppercut", [
         (GUARD, 0.1),
-        ([10, -20, 0, 120,  30, 40, 0, 100], 0.06),  # drop low, arm tucked
-        ([50, 90, 0, 40,  30, 40, 0, 100], 0.05),     # explode upward
+        ([-20, 0, 120,  40, 0, 100,  -10], 0.06),  # drop low, arm tucked, torso coils
+        ([90, 0, 40,  40, 0, 100,  25], 0.05),      # explode upward, torso drives
         (GUARD, 0.1),
     ]),
     ("Right Uppercut", [
         (GUARD, 0.1),
-        ([30, 40, 0, 100,  10, -20, 0, 120], 0.06),  # drop low, arm tucked
-        ([30, 40, 0, 100,  50, 90, 0, 40], 0.05),     # explode upward
+        ([40, 0, 100,  -20, 0, 120,  10], 0.06),   # drop low, arm tucked, torso coils
+        ([40, 0, 100,  90, 0, 40,  -25], 0.05),     # explode upward, torso drives
         (GUARD, 0.1),
     ]),
     ("Left Hook", [
         (GUARD, 0.1),
-        ([100, 10, -20, 90,  30, 40, 0, 100], 0.07),  # arm wide outside
-        ([15, 60, 50, 90,  30, 40, 0, 100], 0.06),     # sweep hard across torso
+        ([10, -20, 90,  40, 0, 100,  -15], 0.07),   # wind up, torso coils back
+        ([60, 50, 90,  40, 0, 100,  35], 0.06),      # sweep across, torso drives
         (GUARD, 0.1),
     ]),
     ("Right Hook", [
         (GUARD, 0.1),
-        ([30, 40, 0, 100,  100, 10, 20, 90], 0.07),   # arm wide outside
-        ([30, 40, 0, 100,  15, 60, -50, 90], 0.06),    # sweep hard across torso
+        ([40, 0, 100,  10, 20, 90,  15], 0.07),     # wind up, torso coils back
+        ([40, 0, 100,  60, -50, 90,  -35], 0.06),    # sweep across, torso drives
         (GUARD, 0.1),
     ]),
     ("Combo: Jab → Cross → Left Hook", [
         (GUARD, 0.1),
-        ([30, 70, 0, 5,  30, 40, 0, 100], 0.05),    # jab
+        ([70, 0, 5,  40, 0, 100,  20], 0.05),       # jab
         (GUARD, 0.07),
-        ([30, 40, 0, 100,  30, 70, 0, 5], 0.05),    # cross
+        ([40, 0, 100,  70, 0, 5,  -25], 0.05),      # cross
         (GUARD, 0.07),
-        ([100, 10, -20, 90,  30, 40, 0, 100], 0.07),  # hook wind wide
-        ([15, 60, 50, 90,  30, 40, 0, 100], 0.06),    # hook sweep across
+        ([10, -20, 90,  40, 0, 100,  -15], 0.07),   # hook wind
+        ([60, 50, 90,  40, 0, 100,  35], 0.06),      # hook sweep across
         (GUARD, 0.1),
     ]),
-    ("T-Pose (arms spread)", [
+    ("Arms Forward (both punch)", [
         (GUARD, 0.1),
-        ([90, 0, 0, 0,  90, 0, 0, 0], 0.3),         # T-pose
+        ([70, 0, 5,  70, 0, 5,  0], 0.3),           # both arms forward
     ]),
     ("Guard → Rest", [
-        ([90, 0, 0, 0,  90, 0, 0, 0], 0.2),
+        ([70, 0, 5,  70, 0, 5,  0], 0.2),
         (REST, 0.1),
     ]),
 ]
@@ -122,7 +122,7 @@ def main():
     cam_target = list(cam_info[11])
 
     print("=" * 50)
-    print("BOXING DEMO (4 DOF per arm)")
+    print("BOXING DEMO (3 DOF per arm + torso)")
     print("Arrow keys to rotate camera, +/- to zoom")
     print("=" * 50)
 
