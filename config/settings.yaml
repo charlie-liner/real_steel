@@ -22,6 +22,13 @@ serial:
 simulation:
   urdf_path: urdf/real_steel.urdf
 
+punch_compensator:
+  wrist_rise_threshold: 0.0
+  foreshortening_threshold: 0.7
+  velocity_threshold: 0.02
+  attack_alpha: 0.4
+  decay_alpha: 0.3
+
 safety:
   max_velocity: 2.0
   position_tolerance: 0.1

@@ -25,10 +25,16 @@ class RealRobot(RobotInterface):
         """Open serial, wait for READY, run safe startup sequence."""
         try:
             self.serial = serial.Serial(self.port, self.baud, timeout=self.timeout)
-            time.sleep(2)  # Wait for ESP32 reset after USB connect
+
+            # Toggle DTR to reset ESP32 (triggers reboot so we get READY)
+            self.serial.dtr = False
+            time.sleep(0.1)
+            self.serial.dtr = True
+            time.sleep(0.1)
+            self.serial.reset_input_buffer()
 
             # Wait for READY (firmware may print boot/sweep messages first)
-            if not self._wait_for_ready(timeout=10.0):
+            if not self._wait_for_ready(timeout=15.0):
                 print(f"ESP32 on {self.port} did not send READY")
                 self.serial.close()
                 self.serial = None

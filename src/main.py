@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Run guided test sequence",
     )
+    parser.add_argument(
+        "--punch-comp",
+        action="store_true",
+        help="Enable punch compensator for forward punch detection",
+    )
     return parser.parse_args()
 
 
@@ -61,7 +66,8 @@ class TestRunner:
     """Guides user through static poses and dynamic motion sequences for evaluation."""
 
     def __init__(self, evaluator, recorder, eval_viz, camera, pose_estimator,
-                 angle_calculator, motion_mapper, robot, use_sim, no_viz):
+                 angle_calculator, motion_mapper, robot, use_sim, no_viz,
+                 punch_compensator=None):
         self.evaluator = evaluator
         self.recorder = recorder
         self.eval_viz = eval_viz
@@ -72,6 +78,7 @@ class TestRunner:
         self.robot = robot
         self.use_sim = use_sim
         self.no_viz = no_viz
+        self.punch_compensator = punch_compensator
         self.results = {}
 
     def run_static_poses(self, config_path: str) -> dict:
@@ -190,6 +197,8 @@ class TestRunner:
 
         pose = self.pose_estimator.process(frame.image, frame.timestamp)
         joint_angles = self.angle_calculator.calculate(pose)
+        if self.punch_compensator is not None:
+            joint_angles = self.punch_compensator.compensate(pose, joint_angles)
 
         servo_angles = None
         if joint_angles is not None and self.robot is not None:
@@ -257,8 +266,12 @@ def main():
 
     # Angle calculator
     angle_cfg = cfg.get("angles", {})
+    elbow_dead_zone = None
+    if args.punch_comp:
+        elbow_dead_zone = angle_cfg.get("punch_comp_elbow_dead_zone", 0.35)
     angle_calculator = AngleCalculator(
         smoothing_factor=angle_cfg.get("smoothing_factor", 0.3),
+        elbow_dead_zone=elbow_dead_zone,
     )
 
     # Motion mapper
@@ -269,6 +282,20 @@ def main():
         dead_zone=np.deg2rad(dead_zone_deg),
     )
     motion_mapper = MotionMapper(config=mapping_config)
+
+    # Punch compensator (optional)
+    punch_compensator = None
+    if args.punch_comp:
+        from src.punch_compensator import PunchCompensator
+        pc_cfg = cfg.get("punch_compensator", {})
+        punch_compensator = PunchCompensator(
+            wrist_rise_threshold=pc_cfg.get("wrist_rise_threshold", 0.0),
+            foreshortening_threshold=pc_cfg.get("foreshortening_threshold", 0.7),
+            velocity_threshold=pc_cfg.get("velocity_threshold", 0.02),
+            attack_alpha=pc_cfg.get("attack_alpha", 0.4),
+            decay_alpha=pc_cfg.get("decay_alpha", 0.3),
+        )
+        print("Punch compensator enabled")
 
     # Pipeline profiler
     profiler = PipelineProfiler(
@@ -340,6 +367,7 @@ def main():
             robot=robot,
             use_sim=use_sim,
             no_viz=args.no_viz,
+            punch_compensator=punch_compensator,
         )
 
         if args.run_test in ("static", "all"):
@@ -380,6 +408,14 @@ def main():
     debug_timer = time.time()
     frame_num = 0
 
+    # Re-enable servos right before main loop — watchdog may have fired
+    # during camera/pose initialization which can take several seconds.
+    if robot is not None and not use_sim:
+        from src.real_robot import RealRobot
+        if isinstance(robot, RealRobot):
+            robot._send("E:1")
+            print("Servos re-enabled")
+
     print("Running pipeline. Press 'q' or ESC to quit.")
     if use_sim:
         print("PyBullet camera: arrow keys to rotate, +/- to zoom")
@@ -409,6 +445,8 @@ def main():
             # Angle calculation
             profiler.start("angles")
             joint_angles = angle_calculator.calculate(pose)
+            if punch_compensator is not None:
+                joint_angles = punch_compensator.compensate(pose, joint_angles)
             profiler.stop("angles")
 
             # Motion mapping and robot command
@@ -478,6 +516,12 @@ def main():
                     print(f"  Human:  [{fmt(human)}]")
                     print(f"  Robot:  [{fmt(mapped)}]")
                     print(f"  Actual: [{fmt(actual)}]")
+                    if punch_compensator is not None:
+                        ps = punch_compensator.get_punch_state()
+                        print(f"  Punch:  L={ps.left_intensity:.2f} R={ps.right_intensity:.2f}"
+                              f"  [rise L={ps.left_wrist_rise:+.3f} R={ps.right_wrist_rise:+.3f}]"
+                              f"  [fshort L={ps.left_foreshortening:.2f} R={ps.right_foreshortening:.2f}]"
+                              f"  [vel L={ps.left_velocity:.3f} R={ps.right_velocity:.3f}]")
                 elif not pose.is_valid:
                     print(f"--- Frame {frame_num} --- (no pose detected)")
 
@@ -530,6 +574,42 @@ def main():
                             0.5,
                             (255, 255, 255),
                             1,
+                        )
+
+                # Punch compensator overlay
+                if punch_compensator is not None:
+                    ps = punch_compensator.get_punch_state()
+                    if ps.left_intensity > 0.01 or ps.right_intensity > 0.01:
+                        h_disp, w_disp = display.shape[:2]
+                        bar_w = 10
+                        bar_h_max = 100
+                        # Left arm bar (left side of frame)
+                        l_h = int(ps.left_intensity * bar_h_max)
+                        cv2.rectangle(
+                            display,
+                            (w_disp - 60, h_disp - 20 - l_h),
+                            (w_disp - 60 + bar_w, h_disp - 20),
+                            (0, 165, 255),
+                            -1,
+                        )
+                        cv2.putText(
+                            display, f"L:{ps.left_intensity:.0%}",
+                            (w_disp - 75, h_disp - 25 - bar_h_max),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1,
+                        )
+                        # Right arm bar
+                        r_h = int(ps.right_intensity * bar_h_max)
+                        cv2.rectangle(
+                            display,
+                            (w_disp - 30, h_disp - 20 - r_h),
+                            (w_disp - 30 + bar_w, h_disp - 20),
+                            (0, 165, 255),
+                            -1,
+                        )
+                        cv2.putText(
+                            display, f"R:{ps.right_intensity:.0%}",
+                            (w_disp - 45, h_disp - 25 - bar_h_max),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1,
                         )
 
                 cv2.imshow("Real Steel - Camera", display)

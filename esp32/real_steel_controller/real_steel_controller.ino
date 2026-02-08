@@ -38,7 +38,11 @@ bool watchdogTriggered = false;
 
 void setup() {
     serial_init();
+    Serial.println("BOOT:serial_ok");
+
+    Serial.println("BOOT:i2c_init...");
     servo_init();
+    Serial.println("BOOT:i2c_ok");
 
     // Servos start disabled for safety.
     // Python side sends E:0 -> H -> E:1 on connect.

@@ -35,12 +35,10 @@ JOINT_LABELS = ["L_roll", "L_tilt", "L_pan", "L_elbow",
 
 def connect(port: str, baud: int = 115200) -> serial.Serial:
     print(f"Connecting to {port} at {baud} baud...")
-    ser = serial.Serial(port, baud, timeout=2)
-    time.sleep(2)  # Wait for ESP32 reset
+    ser = serial.Serial(port, baud, timeout=1)
 
-    # Drain any buffered output, then wait for READY.
-    # The startup sweep takes ~3.5s, so allow up to 10s total.
-    deadline = time.time() + 10
+    # Start reading immediately — READY arrives during ESP32 boot.
+    deadline = time.time() + 15
     while time.time() < deadline:
         line = ser.readline().decode(errors="replace").strip()
         if line:
@@ -52,15 +50,16 @@ def connect(port: str, baud: int = 115200) -> serial.Serial:
     raise RuntimeError("Did not receive READY from ESP32 within 10s")
 
 
-def send_angle(ser: serial.Serial, angle_deg: float) -> str:
-    cmd = f"A:{angle_deg:.1f}\n"
+def send_angle(ser: serial.Serial, joint: int, angle_deg: float) -> str:
+    cmd = f"S:{joint}:{angle_deg:.1f}\n"
     ser.write(cmd.encode())
     return ser.readline().decode(errors="replace").strip()
 
 
-def run_manual(ser: serial.Serial):
+def run_manual(ser: serial.Serial, joint_idx: int):
     """Manual mode: type angles in the terminal."""
-    print("\nManual mode. Type an angle in degrees (or 'q' to quit, 'h' to home):")
+    print(f"\nManual mode — joint {joint_idx} ({JOINT_LABELS[joint_idx]})")
+    print("Type an angle in degrees (or 'q' to quit, 'h' to home):")
     while True:
         try:
             val = input("> ").strip()
@@ -74,7 +73,7 @@ def run_manual(ser: serial.Serial):
             continue
         try:
             angle = float(val)
-            resp = send_angle(ser, angle)
+            resp = send_angle(ser, joint_idx, angle)
             print(f"  {resp}")
         except ValueError:
             print("  Enter a number, 'h', or 'q'")
@@ -103,8 +102,8 @@ def run_camera(ser: serial.Serial, joint_idx: int):
 
     try:
         while True:
-            frame = camera.read()
-            if frame is None:
+            frame, is_new = camera.read()
+            if frame is None or not is_new:
                 continue
 
             pose = pose_estimator.process(frame.image, frame.timestamp)
@@ -114,7 +113,7 @@ def run_camera(ser: serial.Serial, joint_idx: int):
             if joint_angles is not None:
                 servo = motion_mapper.map(joint_angles)
                 servo_deg = np.rad2deg(servo.angles[joint_idx])
-                resp = send_angle(ser, servo_deg)
+                resp = send_angle(ser, joint_idx, servo_deg)
 
                 if resp != "" and not resp.startswith("OK"):
                     print(f"  Warning: {resp}")
@@ -171,7 +170,7 @@ def main():
 
     try:
         if args.manual:
-            run_manual(ser)
+            run_manual(ser, args.joint)
         else:
             run_camera(ser, args.joint)
     finally:

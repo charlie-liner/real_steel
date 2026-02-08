@@ -53,8 +53,10 @@ class AngleCalculator:
         "left_wrist", "right_wrist",
     ]
 
-    def __init__(self, smoothing_factor: float = 0.3):
+    def __init__(self, smoothing_factor: float = 0.3, elbow_dead_zone: float | None = None):
         self.smoothing_factor = smoothing_factor
+        if elbow_dead_zone is not None:
+            self.ELBOW_DEAD_ZONE = elbow_dead_zone
         self.prev_angles: JointAngles | None = None
 
     def calculate(self, pose: PoseResult) -> JointAngles | None:
