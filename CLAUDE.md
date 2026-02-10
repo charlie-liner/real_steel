@@ -20,7 +20,7 @@ Camera (OpenCV) → Pose Estimation (MediaPipe) → Angle Extraction → Motion 
 - `SimulatedRobot` — PyBullet simulation (development/testing, uses URDF model)
 - `RealRobot` — Serial communication to ESP32 controller (production hardware)
 
-The ESP32 receives ASCII serial commands at 115200 baud and drives 6 servos (3 per arm) via a PCA9685 PWM driver over I2C.
+The ESP32 receives ASCII serial commands at 115200 baud and drives 7 servos (3 per arm + torso yaw) via a PCA9685 PWM driver over I2C.
 
 **Key conventions:**
 - All internal angle processing uses **radians**; conversion to degrees only at the ESP32 serial boundary
@@ -103,7 +103,7 @@ Commands (Mac → ESP32):
 Responses (ESP32 → Mac):
 - `OK` — Success
 - `ERR:<code>:<msg>` — Error (codes: 1=invalid format, 2=angle OOR, 3=bad joint, 4=servo error)
-- `P:<a0>,...,<a5>` — Position report
+- `P:<a0>,...,<a6>` — Position report
 - `READY` — Boot complete
 
 ## Joint Configuration

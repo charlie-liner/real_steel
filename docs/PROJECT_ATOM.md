@@ -220,7 +220,7 @@ PCA9685 PWM Driver (50Hz)
     6: Torso_yaw
 ```
 
-**Frame:** Pan-tilt brackets (shoulder roll+tilt) + U-brackets (pan+upper arm) + servo horn (elbow). Arriving.
+**Frame:** Pan-tilt brackets (shoulder tilt+pan) + U-brackets (upper arm) + servo horn (elbow) + base servo (torso yaw). Arriving.
 
 **Power:** External 6V PSU for servos, USB power for ESP32.
 

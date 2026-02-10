@@ -55,11 +55,18 @@ class AngleCalculator:
     # Reduce Z's contribution to horizontal distance in tilt calculation.
     DEPTH_WEIGHT = 0.3
 
+    # Torso yaw is pure Z-axis, so it needs extra filtering.
+    # Dead zone: ignore small yaw angles (Z noise when facing camera).
+    TORSO_YAW_DEAD_ZONE = 0.05  # ~3 degrees
+    # Heavier EMA smoothing for torso yaw (0.0=no smooth, 1.0=frozen).
+    TORSO_YAW_SMOOTHING = 0.7
+
     def __init__(self, smoothing_factor: float = 0.3, elbow_dead_zone: float | None = None):
         self.smoothing_factor = smoothing_factor
         if elbow_dead_zone is not None:
             self.ELBOW_DEAD_ZONE = elbow_dead_zone
         self.prev_angles: JointAngles | None = None
+        self._prev_torso_yaw: float = 0.0
 
     def calculate(self, pose: PoseResult) -> JointAngles | None:
         if not pose.is_valid:
@@ -179,7 +186,17 @@ class AngleCalculator:
         dz = right_shoulder[2] - left_shoulder[2]
         yaw = np.arctan2(dz, dx)
         # Attenuate with DEPTH_WEIGHT since Z is noisy
-        return float(yaw * self.DEPTH_WEIGHT)
+        yaw = float(yaw * self.DEPTH_WEIGHT)
+
+        # Dead zone: snap small angles to 0 (Z noise when facing camera)
+        if abs(yaw) < self.TORSO_YAW_DEAD_ZONE:
+            yaw = 0.0
+
+        # Dedicated heavier smoothing (on top of the general joint smoothing)
+        yaw = self.TORSO_YAW_SMOOTHING * self._prev_torso_yaw + (1 - self.TORSO_YAW_SMOOTHING) * yaw
+        self._prev_torso_yaw = yaw
+
+        return yaw
 
     def _smooth(self, current: JointAngles, previous: JointAngles) -> JointAngles:
         alpha = self.smoothing_factor
@@ -194,3 +211,4 @@ class AngleCalculator:
 
     def reset(self) -> None:
         self.prev_angles = None
+        self._prev_torso_yaw = 0.0

@@ -37,7 +37,10 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--port", default=None, help="Serial port override")
     parser.add_argument(
-        "--no-viz", action="store_true", help="Disable camera visualization"
+        "--no-viz", action="store_true", help="Disable all visualization (camera + PyBullet)"
+    )
+    parser.add_argument(
+        "--no-cam", action="store_true", help="Disable camera overlay only (keeps PyBullet GUI)"
     )
     parser.add_argument(
         "--calibrate", action="store_true", help="Run calibration test mode"
@@ -58,6 +61,13 @@ def parse_args() -> argparse.Namespace:
         "--punch-comp",
         action="store_true",
         help="Enable punch compensator for forward punch detection",
+    )
+    parser.add_argument(
+        "--pose-skip",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Run pose estimation every Nth frame (default: 1 = every frame)",
     )
     return parser.parse_args()
 
@@ -239,6 +249,8 @@ class TestRunner:
 
 def main():
     args = parse_args()
+    if args.no_viz:
+        args.no_cam = True
     cfg = load_config(args.config)
 
     if args.calibrate:
@@ -310,7 +322,7 @@ def main():
         from src.simulated_robot import SimulatedRobot
         sim_cfg = cfg.get("simulation", {})
         urdf_path = sim_cfg.get("urdf_path", "urdf/real_steel.urdf")
-        robot = SimulatedRobot(urdf_path=urdf_path, gui=True)
+        robot = SimulatedRobot(urdf_path=urdf_path, gui=not args.no_viz)
         if not robot.connect():
             print("Failed to connect to simulation")
             sys.exit(1)
@@ -366,7 +378,7 @@ def main():
             motion_mapper=motion_mapper,
             robot=robot,
             use_sim=use_sim,
-            no_viz=args.no_viz,
+            no_viz=args.no_cam,
             punch_compensator=punch_compensator,
         )
 
@@ -437,7 +449,13 @@ def main():
 
             profiler.tick()
 
-            # Pose estimation
+            # Pose estimation (skip frames if --pose-skip > 1)
+            if frame_num % args.pose_skip != 0:
+                frame_num += 1
+                if use_sim and robot is not None:
+                    robot.step()
+                continue
+
             profiler.start("pose")
             pose = pose_estimator.process(frame.image, frame.timestamp)
             profiler.stop("pose")
@@ -525,8 +543,23 @@ def main():
                 elif not pose.is_valid:
                     print(f"--- Frame {frame_num} --- (no pose detected)")
 
+            # FPS counter (always runs, even with --no-viz)
+            fps_counter += 1
+            elapsed = time.time() - fps_timer
+            if elapsed >= 5.0:
+                current_fps = fps_counter / elapsed
+                fps_counter = 0
+                fps_timer = time.time()
+                if args.no_cam:
+                    print(f"FPS: {current_fps:.1f}")
+
+            # Profiler report (prints every report_interval)
+            report = profiler.report()
+            if report:
+                print(report)
+
             # Visualization
-            if not args.no_viz:
+            if not args.no_cam:
                 display = pose_estimator.draw(frame.image, pose)
 
                 # Eval overlay
@@ -535,19 +568,6 @@ def main():
                     gap_b = evaluator.compute_gap_b(servo_angles.angles, robot_actual)
                     evaluator.update_running_stats(gap_b)
                     display = eval_viz.draw_gap_overlay(display, evaluator.get_running_stats())
-
-                # FPS counter
-                fps_counter += 1
-                elapsed = time.time() - fps_timer
-                if elapsed >= 5.0:
-                    current_fps = fps_counter / elapsed
-                    fps_counter = 0
-                    fps_timer = time.time()
-
-                # Profiler report (prints every report_interval)
-                report = profiler.report()
-                if report:
-                    print(report)
 
                 # Draw FPS on frame
                 cv2.putText(

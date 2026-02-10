@@ -47,19 +47,36 @@ class PoseEstimator:
         ("left_shoulder", "right_shoulder"),
     ]
 
+    # Shoulders are required — wrists/elbows can drop out during fast punches.
+    REQUIRED_KEYPOINTS = {"left_shoulder", "right_shoulder"}
+
+    # Downscale input before pose estimation. MediaPipe internally resizes
+    # to 256x256 anyway, so feeding full-res just wastes time on cvtColor/copy.
+    POSE_INPUT_WIDTH = 320
+
     def __init__(self, model_path: str, min_visibility: float = 0.3):
         self.min_visibility = min_visibility
         self._last_valid_result: PoseResult | None = None
+        self._frame_ms = 0
         options = vision.PoseLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=model_path),
+            running_mode=vision.RunningMode.VIDEO,
             num_poses=1,
         )
         self.landmarker = vision.PoseLandmarker.create_from_options(options)
 
     def process(self, image: np.ndarray, timestamp: float) -> PoseResult:
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        h, w = image.shape[:2]
+        if w > self.POSE_INPUT_WIDTH:
+            scale = self.POSE_INPUT_WIDTH / w
+            small = cv2.resize(image, (self.POSE_INPUT_WIDTH, int(h * scale)))
+        else:
+            small = image
+        image_rgb = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
-        result = self.landmarker.detect(mp_image)
+        # VIDEO mode: uses temporal tracking from previous frames
+        result = self.landmarker.detect_for_video(mp_image, self._frame_ms)
+        self._frame_ms += 33  # ~30 FPS monotonic timestamp
 
         keypoints: dict[str, Point3D] = {}
         is_valid = False
@@ -81,9 +98,11 @@ class PoseEstimator:
                     world_z=wlm.z,
                 )
 
+            # Only require shoulders to be visible — elbows/wrists can
+            # drop out during fast punches and still be usable.
             is_valid = all(
                 keypoints[name].visibility >= self.min_visibility
-                for name in self.KEYPOINT_INDICES.values()
+                for name in self.REQUIRED_KEYPOINTS
             )
 
         result = PoseResult(
